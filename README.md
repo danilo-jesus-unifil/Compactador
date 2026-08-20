@@ -14,7 +14,7 @@ crates/
 └── compressor/             # executável acionado pelo Explorer e operação
 ```
 
-As regras de trabalho estão em [`docs/BOAS_PRATICAS_GIT_E_PROJETO.md`](docs/BOAS_PRATICAS_GIT_E_PROJETO.md). As decisões de registro estão em [`docs/DECISAO_INTEGRACAO_WINDOWS.md`](docs/DECISAO_INTEGRACAO_WINDOWS.md).
+As regras de trabalho estão em [`docs/BOAS_PRATICAS_GIT_E_PROJETO.md`](docs/BOAS_PRATICAS_GIT_E_PROJETO.md). As decisões de registro estão em [`docs/DECISAO_INTEGRACAO_WINDOWS.md`](docs/DECISAO_INTEGRACAO_WINDOWS.md). A pesquisa de prompts de auditoria por IA está em [`docs/PESQUISA_PROMPTS_REVISAO_IA.md`](docs/PESQUISA_PROMPTS_REVISAO_IA.md), com o prompt aplicado em [`docs/PROMPT_AUDITORIA_IA_APLICADO_2026-08.md`](docs/PROMPT_AUDITORIA_IA_APLICADO_2026-08.md).
 
 ## Recursos implementados
 

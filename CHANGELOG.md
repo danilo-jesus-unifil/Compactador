@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.17] — 2026-08-20
+
+### Auditoria orientada por prompt de IA
+
+A pesquisa de prompts para revisão de projetos foi consolidada em `docs/PESQUISA_PROMPTS_REVISAO_IA.md`, e o prompt adaptado usado na auditoria foi versionado em `docs/PROMPT_AUDITORIA_IA_APLICADO_2026-08.md`. A aplicação cobriu segurança, desempenho, qualidade, arquitetura, testes, integração Windows, documentação, CI e release, com evidência por código, testes e comandos.
+
+A auditoria encontrou e corrigiu um conflito hierárquico em archives ZIP: um arquivo-pai como `Folder` podia coexistir com uma entrada descendente como `folder/child.txt`. `validate_archive` agora rejeita o archive antes de aceitá-lo, e `extract_archive` compartilha a mesma validação antes da publicação. O teste `rejects_file_path_that_is_an_ancestor_of_another_entry` reproduz o caso com capitalização diferente e confirma que nenhum destino parcial é publicado.
+
+### Validação
+
+Foram aprovados `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, Clippy estrito locked, `cargo build --workspace --release --locked`, `cargo tree -d`, `cargo metadata --locked`, `git diff --check` e o E2E dos binários release. A suíte local possui 41 testes: 18 do core, 12 do container, 5 do compressor e 6 da integração Windows em memória. O workflow Windows deve confirmar novamente os testes condicionais e os artefatos antes da publicação.
+
+### Limitações conhecidas
+
+A janela TOCTOU entre verificar e publicar o diretório final de extração permanece como risco residual dependente de plataforma. Também continuam pendentes a validação visual do Explorer, o Registry real, Windows 10/11, UNC, caminhos longos e seleções múltiplas extensas, o handler próprio de Ctrl+C no CLI e `cargo-audit`, indisponível no ambiente local.
+
 ## [0.1.16] — 2026-08-20
 
 ### Correção pós-CI Windows
