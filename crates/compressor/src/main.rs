@@ -5,6 +5,7 @@ use compactador_core::error::CoreError;
 use compactador_core::models::{OperationPhase, ResourceProfile};
 use compactador_core::selection::SelectionRequest;
 use operation::{run_operation, CancellationToken, ProgressEvent, ProgressReporter};
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Default)]
@@ -12,11 +13,15 @@ struct ConsoleReporter;
 
 impl ProgressReporter for ConsoleReporter {
     fn report(&self, event: ProgressEvent) {
-        let progress = event
-            .completed_bytes
-            .saturating_mul(100)
-            .checked_div(event.total_bytes)
-            .unwrap_or(0);
+        let progress = if event.total_bytes == 0 && event.phase == OperationPhase::Completed {
+            100
+        } else {
+            event
+                .completed_bytes
+                .saturating_mul(100)
+                .checked_div(event.total_bytes)
+                .unwrap_or(0)
+        };
         println!(
             "[{}] {:>3}% {}",
             phase_name(event.phase),
@@ -38,29 +43,40 @@ fn phase_name(phase: OperationPhase) -> &'static str {
     }
 }
 
+fn compression_stem(request: &SelectionRequest) -> Result<OsString, CoreError> {
+    let first = request
+        .inputs
+        .first()
+        .ok_or_else(|| CoreError::InvalidInput("seleção vazia".to_owned()))?;
+    if request.inputs.len() == 1 {
+        first
+            .path
+            .file_stem()
+            .or_else(|| first.path.file_name())
+            .map(|name| name.to_os_string())
+            .ok_or_else(|| CoreError::InvalidInput("entrada sem nome".to_owned()))
+    } else {
+        Ok(OsString::from("compactado"))
+    }
+}
+
 fn default_output(request: &SelectionRequest) -> Result<PathBuf, CoreError> {
     let first = request
         .inputs
         .first()
         .ok_or_else(|| CoreError::InvalidInput("seleção vazia".to_owned()))?;
     let parent = first.path.parent().unwrap_or_else(|| Path::new("."));
-    let name = if request.inputs.len() == 1 {
-        first
-            .path
-            .file_stem()
-            .or_else(|| first.path.file_name())
-            .ok_or_else(|| CoreError::InvalidInput("entrada sem nome".to_owned()))?
-            .to_string_lossy()
-            .into_owned()
-    } else {
-        "compactado".to_owned()
-    };
-    let base = parent.join(format!("{name}.zip"));
+    let name = compression_stem(request)?;
+    let mut base_name = name;
+    base_name.push(".zip");
+    let base = parent.join(base_name);
     if !base.exists() {
         return Ok(base);
     }
     for index in 1..=9999 {
-        let candidate = parent.join(format!("{name} ({index}).zip"));
+        let mut candidate_name = compression_stem(request)?;
+        candidate_name.push(format!(" ({index}).zip"));
+        let candidate = parent.join(candidate_name);
         if !candidate.exists() {
             return Ok(candidate);
         }
@@ -70,19 +86,26 @@ fn default_output(request: &SelectionRequest) -> Result<PathBuf, CoreError> {
     ))
 }
 
-fn default_extraction_output(archive: &Path) -> Result<PathBuf, CoreError> {
-    let parent = archive.parent().unwrap_or_else(|| Path::new("."));
-    let name = archive
+fn extraction_stem(archive: &Path) -> Result<OsString, CoreError> {
+    archive
         .file_stem()
         .or_else(|| archive.file_name())
-        .ok_or_else(|| CoreError::InvalidInput("arquivo ZIP sem nome".to_owned()))?
-        .to_string_lossy();
-    let base = parent.join(format!("{name}-extraido"));
+        .map(|name| name.to_os_string())
+        .ok_or_else(|| CoreError::InvalidInput("arquivo ZIP sem nome".to_owned()))
+}
+
+fn default_extraction_output(archive: &Path) -> Result<PathBuf, CoreError> {
+    let parent = archive.parent().unwrap_or_else(|| Path::new("."));
+    let mut base_name = extraction_stem(archive)?;
+    base_name.push("-extraido");
+    let base = parent.join(base_name);
     if !base.exists() {
         return Ok(base);
     }
     for index in 1..=9999 {
-        let candidate = parent.join(format!("{name}-extraido ({index})"));
+        let mut candidate_name = extraction_stem(archive)?;
+        candidate_name.push(format!("-extraido ({index})"));
+        let candidate = parent.join(candidate_name);
         if !candidate.exists() {
             return Ok(candidate);
         }

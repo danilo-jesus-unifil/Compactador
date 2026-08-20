@@ -152,6 +152,26 @@ mod windows_backend {
         }
     }
 
+    fn prune_empty_key(root: &RegKey, key_path: &str) -> Result<(), std::io::Error> {
+        let key = match root.open_subkey_with_flags(key_path, winreg::enums::KEY_READ) {
+            Ok(key) => key,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(error) => return Err(error),
+        };
+        let has_value = key.enum_values().next().transpose()?.is_some();
+        let has_subkey = key.enum_keys().next().transpose()?.is_some();
+        drop(key);
+        if !has_value && !has_subkey {
+            match root.delete_subkey(key_path) {
+                Ok(()) => Ok(()),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                Err(error) => Err(error),
+            }
+        } else {
+            Ok(())
+        }
+    }
+
     impl RegistryBackend for WindowsRegistry {
         type Error = std::io::Error;
 
@@ -182,21 +202,22 @@ mod windows_backend {
 
         fn delete(&self, entry: &RegistryEntry) -> Result<(), Self::Error> {
             let root = Self::root(entry.hive);
-            let key = match root.open_subkey_with_flags(&entry.key, winreg::enums::KEY_WRITE) {
+            let key = match root.open_subkey_with_flags(
+                &entry.key,
+                winreg::enums::KEY_READ | winreg::enums::KEY_WRITE,
+            ) {
                 Ok(key) => key,
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
                 Err(error) => return Err(error),
             };
-            if let Some(value_name) = entry.value_name.as_deref() {
-                match key.delete_value(value_name) {
-                    Ok(()) => Ok(()),
-                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-                    Err(error) => Err(error),
-                }
-            } else {
-                drop(key);
-                root.delete_subkey_all(&entry.key)
-            }
+            let value_name = entry.value_name.as_deref().unwrap_or("");
+            let result = match key.delete_value(value_name) {
+                Ok(()) => Ok(()),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                Err(error) => Err(error),
+            };
+            drop(key);
+            result.and_then(|()| prune_empty_key(&root, &entry.key))
         }
     }
 }

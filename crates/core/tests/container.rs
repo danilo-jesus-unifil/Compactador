@@ -30,9 +30,11 @@ fn compresses_validates_and_extracts_unicode_file() {
     fs::write(&input, contents.as_bytes()).expect("write input");
     let summary = compress_file(&input, &archive, CompressionLevel::Normal).expect("compress");
     assert_eq!(summary.entries.len(), 1);
+    assert!(summary.entries[0].data_offset > 0);
     assert!(validate_archive(&archive).is_ok());
     let extracted = extract_archive(&archive, &destination).expect("extract");
     assert_eq!(extracted.total_original_bytes, contents.len() as u64);
+    assert!(extracted.entries[0].data_offset > 0);
     assert_eq!(
         fs::read(destination.join("Meu arquivo.txt")).expect("read output"),
         contents.as_bytes()
@@ -58,6 +60,24 @@ fn supports_directory_and_multiple_selection_without_following_symlinks() {
     .expect("compress selection");
     assert!(summary.entries.len() >= 4);
     assert!(validate_archive(&archive).is_ok());
+    let _ = fs::remove_dir_all(root);
+}
+
+#[cfg(unix)]
+#[test]
+fn rejects_symlink_inside_directory() {
+    use std::os::unix::fs::symlink;
+
+    let root = temp_dir();
+    let input = root.join("input");
+    let target = root.join("target.txt");
+    let link = input.join("link.txt");
+    fs::create_dir_all(&input).expect("create input");
+    fs::write(&target, b"dados").expect("write target");
+    symlink(&target, link).expect("create link");
+    let output = root.join("output.zip");
+    assert!(compress_inputs(vec![input], &output, CompressionLevel::Normal).is_err());
+    assert!(!output.exists());
     let _ = fs::remove_dir_all(root);
 }
 
@@ -116,17 +136,27 @@ fn rejects_output_inside_input_directory() {
 fn extraction_rejects_traversal_and_existing_destination() {
     let root = temp_dir();
     fs::create_dir_all(&root).expect("create root");
-    let malicious = root.join("malicious.zip");
-    let file = File::create(&malicious).expect("create archive");
-    let mut writer = ZipWriter::new(file);
-    writer
-        .start_file("../escape.txt", FileOptions::default())
-        .expect("start malicious entry");
-    writer.write_all(b"escape").expect("write malicious entry");
-    writer.finish().expect("finish archive");
     let destination = root.join("destino");
-    assert!(extract_archive(&malicious, &destination).is_err());
-    assert!(!destination.exists());
+    for (index, name) in [
+        "../escape.txt",
+        "C:\\escape.txt",
+        "\\\\server\\share\\escape.txt",
+        "pasta\\..\\escape.txt",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let malicious = root.join(format!("malicious-{index}.zip"));
+        let file = File::create(&malicious).expect("create archive");
+        let mut writer = ZipWriter::new(file);
+        writer
+            .start_file(name, FileOptions::default())
+            .expect("start malicious entry");
+        writer.write_all(b"escape").expect("write malicious entry");
+        writer.finish().expect("finish archive");
+        assert!(extract_archive(&malicious, &destination).is_err());
+        assert!(!destination.exists());
+    }
 
     let input = root.join("arquivo.txt");
     let valid = root.join("valid.zip");
@@ -139,6 +169,26 @@ fn extraction_rejects_traversal_and_existing_destination() {
         fs::read(destination.join("sentinela.txt")).expect("read sentinel"),
         b"preservar"
     );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn extraction_rejects_duplicate_directory_entries() {
+    let root = temp_dir();
+    fs::create_dir_all(&root).expect("create root");
+    let archive = root.join("duplicate-directories.zip");
+    let file = File::create(&archive).expect("create archive");
+    let mut writer = ZipWriter::new(file);
+    writer
+        .add_directory("folder/", FileOptions::default())
+        .expect("start first directory");
+    writer
+        .add_directory("folder/", FileOptions::default())
+        .expect("start second directory");
+    writer.finish().expect("finish archive");
+    let destination = root.join("destination");
+    assert!(extract_archive(&archive, &destination).is_err());
+    assert!(!destination.exists());
     let _ = fs::remove_dir_all(root);
 }
 

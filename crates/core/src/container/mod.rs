@@ -6,7 +6,7 @@ use crc32fast::Hasher;
 use std::collections::HashSet;
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufReader, BufWriter, Read, Seek, Write};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use zip::read::ZipFile;
 use zip::write::{FileOptions, ZipWriter};
@@ -38,6 +38,12 @@ pub struct ArchiveSummary {
 pub enum ContainerCompression {
     Deflate,
     Store,
+}
+
+pub struct ContainerProgressCallbacks<'a> {
+    pub on_progress: &'a dyn Fn(u64),
+    pub on_validation_start: &'a dyn Fn(),
+    pub on_finalizing_start: &'a dyn Fn(),
 }
 
 pub fn compress_file(
@@ -80,6 +86,28 @@ pub fn compress_inputs_with_strategy(
     is_cancelled: &dyn Fn() -> bool,
     on_progress: &dyn Fn(u64),
 ) -> CoreResult<ArchiveSummary> {
+    compress_inputs_with_strategy_and_validation(
+        paths,
+        output,
+        level,
+        compression,
+        is_cancelled,
+        ContainerProgressCallbacks {
+            on_progress,
+            on_validation_start: &|| {},
+            on_finalizing_start: &|| {},
+        },
+    )
+}
+
+pub fn compress_inputs_with_strategy_and_validation(
+    paths: impl AsRef<[PathBuf]>,
+    output: impl AsRef<Path>,
+    level: CompressionLevel,
+    compression: ContainerCompression,
+    is_cancelled: &dyn Fn() -> bool,
+    callbacks: ContainerProgressCallbacks<'_>,
+) -> CoreResult<ArchiveSummary> {
     let inputs = validate_inputs(paths.as_ref())?;
     let output = output.as_ref();
     ensure_output_does_not_overlap_inputs(&inputs, output)?;
@@ -114,7 +142,7 @@ pub fn compress_inputs_with_strategy(
         let mut completed_bytes = 0_u64;
         let mut progress = |bytes: u64| {
             completed_bytes = completed_bytes.saturating_add(bytes);
-            on_progress(completed_bytes);
+            (callbacks.on_progress)(completed_bytes);
         };
         for input in &inputs {
             if is_cancelled() {
@@ -133,8 +161,10 @@ pub fn compress_inputs_with_strategy(
         output_file.flush()?;
         output_file.get_ref().sync_all()?;
         drop(output_file);
+        (callbacks.on_validation_start)();
         let summary = validate_archive(&temporary)?;
-        fs::rename(&temporary, output)?;
+        (callbacks.on_finalizing_start)();
+        publish_file_without_overwrite(&temporary, output)?;
         Ok(summary)
     })();
     if result.is_err() {
@@ -158,7 +188,7 @@ fn append_input<W: Write + Seek>(
                 .file_name()
                 .ok_or_else(|| CoreError::InvalidInput("arquivo sem nome".to_owned()))?;
             let relative = PathBuf::from(name);
-            let key = normalized_name(&relative);
+            let key = normalized_name(&relative)?;
             if !names.insert(key.clone()) {
                 return Err(CoreError::InvalidInput(format!(
                     "nomes de entrada duplicados no container: {key}"
@@ -207,7 +237,7 @@ fn append_directory<W: Write + Seek>(
             directory.display()
         )));
     }
-    let key = format!("{}/", normalized_name(relative));
+    let key = format!("{}/", normalized_name(relative)?);
     if !names.insert(key.clone()) {
         return Err(CoreError::InvalidInput(format!(
             "nomes de entrada duplicados no container: {key}"
@@ -236,7 +266,7 @@ fn append_directory<W: Write + Seek>(
                 on_progress,
             )?;
         } else if metadata.is_file() {
-            let key = normalized_name(&child_relative);
+            let key = normalized_name(&child_relative)?;
             if !names.insert(key.clone()) {
                 return Err(CoreError::InvalidInput(format!(
                     "nomes de entrada duplicados no container: {key}"
@@ -272,7 +302,7 @@ pub fn validate_archive(path: impl AsRef<Path>) -> CoreResult<ArchiveSummary> {
     for index in 0..archive.len() {
         let mut entry = archive.by_index(index).map_err(zip_error)?;
         let relative = safe_zip_path(&entry)?;
-        let name = normalized_name(&relative);
+        let name = normalized_name(&relative)?;
         if !names.insert(name.clone()) {
             return Err(CoreError::InvalidInput(format!(
                 "entrada duplicada no container: {name}"
@@ -301,7 +331,7 @@ pub fn validate_archive(path: impl AsRef<Path>) -> CoreResult<ArchiveSummary> {
             original_size,
             compressed_size,
             checksum,
-            data_offset: 0,
+            data_offset: entry.data_start(),
         });
     }
     Ok(ArchiveSummary {
@@ -330,7 +360,7 @@ pub fn extract_archive(
     }
     let staging = temporary_path(destination);
     let result = (|| {
-        fs::create_dir_all(&staging)?;
+        fs::create_dir(&staging)?;
         let file = File::open(path)?;
         let mut archive = ZipArchive::new(BufReader::with_capacity(DEFAULT_BUFFER_SIZE, file))
             .map_err(zip_error)?;
@@ -340,11 +370,18 @@ pub fn extract_archive(
             ));
         }
         let mut entries = Vec::with_capacity(archive.len());
+        let mut names = HashSet::new();
         let mut total_original_bytes = 0_u64;
         let mut total_compressed_bytes = 0_u64;
         for index in 0..archive.len() {
             let mut entry = archive.by_index(index).map_err(zip_error)?;
             let relative = safe_zip_path(&entry)?;
+            let name = normalized_name(&relative)?;
+            if !names.insert(name.clone()) {
+                return Err(CoreError::InvalidInput(format!(
+                    "entrada duplicada no container: {name}"
+                )));
+            }
             let target = staging.join(&relative);
             let (original_size, compressed_size, checksum) = if entry.is_dir() {
                 if target.exists() && !target.is_dir() {
@@ -372,6 +409,7 @@ pub fn extract_archive(
                 }
                 result?
             };
+            let data_offset = entry.data_start();
             total_original_bytes =
                 total_original_bytes
                     .checked_add(original_size)
@@ -394,7 +432,7 @@ pub fn extract_archive(
                 original_size,
                 compressed_size,
                 checksum,
-                data_offset: 0,
+                data_offset,
             });
         }
         fs::rename(&staging, destination)?;
@@ -483,7 +521,7 @@ fn extract_entry(
         )));
     }
     ensure_expansion_ratio(entry.name(), total, entry.compressed_size())?;
-    fs::rename(temporary, target)?;
+    publish_file_without_overwrite(temporary, target)?;
     Ok((total, entry.compressed_size(), checksum))
 }
 
@@ -539,19 +577,7 @@ fn ensure_output_does_not_overlap_inputs(inputs: &[InputEntry], output: &Path) -
     } else {
         std::env::current_dir()?.join(output)
     };
-    let output_path = if output_absolute.exists() {
-        fs::canonicalize(&output_absolute)?
-    } else if let Some(file_name) = output_absolute.file_name() {
-        let parent = output_absolute.parent().unwrap_or_else(|| Path::new("."));
-        let parent = if parent.exists() {
-            fs::canonicalize(parent)?
-        } else {
-            parent.to_path_buf()
-        };
-        parent.join(file_name)
-    } else {
-        output_absolute
-    };
+    let output_path = normalize_nonexistent_path(&output_absolute)?;
     for input in inputs {
         let input_path = fs::canonicalize(&input.path)?;
         let overlaps = match input.kind {
@@ -567,12 +593,65 @@ fn ensure_output_does_not_overlap_inputs(inputs: &[InputEntry], output: &Path) -
     Ok(())
 }
 
-fn normalized_name(path: &Path) -> String {
-    path.to_string_lossy().replace('\\', "/")
+fn normalize_nonexistent_path(path: &Path) -> CoreResult<PathBuf> {
+    let mut lexical = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::Prefix(prefix) => lexical.push(prefix.as_os_str()),
+            Component::RootDir => lexical.push(component.as_os_str()),
+            Component::CurDir => {}
+            Component::ParentDir => {
+                lexical.pop();
+            }
+            Component::Normal(part) => lexical.push(part),
+        }
+    }
+
+    let mut missing = Vec::new();
+    let mut current = lexical.as_path();
+    while !current.exists() {
+        let component = current.file_name().ok_or_else(|| {
+            CoreError::InvalidInput(format!("caminho de saída inválido: {}", path.display()))
+        })?;
+        missing.push(PathBuf::from(component));
+        current = current.parent().unwrap_or_else(|| Path::new("."));
+    }
+    let mut normalized = fs::canonicalize(current)?;
+    for component in missing.iter().rev() {
+        normalized.push(component);
+    }
+    Ok(normalized)
+}
+
+fn normalized_name(path: &Path) -> CoreResult<String> {
+    let safe = safe_relative_path(path)?;
+    let name = safe.to_str().ok_or_else(|| {
+        CoreError::InvalidInput(format!(
+            "nome de entrada não é Unicode válido: {}",
+            path.display()
+        ))
+    })?;
+    Ok(name.replace('\\', "/"))
 }
 
 fn create_temporary_file(path: &Path) -> CoreResult<File> {
     Ok(OpenOptions::new().write(true).create_new(true).open(path)?)
+}
+
+fn publish_file_without_overwrite(temporary: &Path, output: &Path) -> CoreResult<()> {
+    match fs::hard_link(temporary, output) {
+        Ok(()) => {
+            let _ = fs::remove_file(temporary);
+            Ok(())
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            Err(CoreError::InvalidInput(format!(
+                "o arquivo de saída já existe: {}",
+                output.display()
+            )))
+        }
+        Err(error) => Err(CoreError::Io(error)),
+    }
 }
 
 fn temporary_path(target: &Path) -> PathBuf {
@@ -585,5 +664,16 @@ fn temporary_path(target: &Path) -> PathBuf {
 }
 
 fn zip_error(error: zip::result::ZipError) -> CoreError {
-    CoreError::InvalidInput(format!("container ZIP inválido: {error}"))
+    match error {
+        zip::result::ZipError::Io(error) => CoreError::Io(error),
+        zip::result::ZipError::InvalidArchive(message) => {
+            CoreError::InvalidInput(format!("container ZIP inválido: {message}"))
+        }
+        zip::result::ZipError::UnsupportedArchive(message) => {
+            CoreError::Unsupported(format!("recurso do container ZIP não suportado: {message}"))
+        }
+        zip::result::ZipError::FileNotFound => {
+            CoreError::InvalidInput("entrada não encontrada no container ZIP".to_owned())
+        }
+    }
 }

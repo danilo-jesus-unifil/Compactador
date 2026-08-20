@@ -74,7 +74,16 @@ pub fn extension_classification(path: &Path) -> Classification {
 
 pub fn analyze_file(path: impl AsRef<Path>) -> io::Result<FileAnalysis> {
     let path = path.as_ref();
-    let metadata = std::fs::metadata(path)?;
+    let metadata = std::fs::symlink_metadata(path)?;
+    if is_link_or_reparse_point(&metadata) {
+        return Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            format!(
+                "links simbólicos ou reparse points não são analisados: {}",
+                path.display()
+            ),
+        ));
+    }
     if !metadata.is_file() {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -126,6 +135,7 @@ struct AnalysisAccumulator {
     files: u64,
     directories: u64,
     total_size_bytes: u64,
+    analyzed_size_bytes: u64,
     weighted_compressibility: u64,
     category_sizes: std::collections::HashMap<FileClassification, u64>,
     already_compressed: bool,
@@ -145,15 +155,17 @@ impl AnalysisAccumulator {
         }
         let analysis = analyze_file(path)?;
         self.files += 1;
+        self.analyzed_size_bytes = self.analyzed_size_bytes.saturating_add(analysis.size_bytes);
         self.weighted_compressibility = self.weighted_compressibility.saturating_add(
             analysis
                 .size_bytes
                 .saturating_mul(u64::from(analysis.estimated_compressibility_percent)),
         );
-        *self
+        let category_size = self
             .category_sizes
             .entry(analysis.classification.kind)
-            .or_insert(0) += analysis.size_bytes;
+            .or_insert(0);
+        *category_size = category_size.saturating_add(analysis.size_bytes);
         if !matches!(
             analysis.classification.kind,
             FileClassification::Archive
@@ -174,7 +186,7 @@ impl AnalysisAccumulator {
             .map(|(category, _)| category);
         let estimated = self
             .weighted_compressibility
-            .checked_div(self.total_size_bytes)
+            .checked_div(self.analyzed_size_bytes)
             .unwrap_or(0)
             .min(100) as u8;
         SelectionAnalysis {
@@ -183,7 +195,7 @@ impl AnalysisAccumulator {
             total_size_bytes: self.total_size_bytes,
             estimated_compressibility_percent: estimated,
             dominant_category,
-            already_compressed: self.files > 0 && self.already_compressed,
+            already_compressed: self.files > 0 && self.already_compressed && !self.sampled,
             sampled: self.sampled,
         }
     }
@@ -192,16 +204,46 @@ impl AnalysisAccumulator {
 fn analyze_directory(path: &Path, accumulator: &mut AnalysisAccumulator) -> io::Result<()> {
     let mut pending = vec![path.to_path_buf()];
     while let Some(directory) = pending.pop() {
+        let metadata = std::fs::symlink_metadata(&directory)?;
+        if is_link_or_reparse_point(&metadata) {
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                format!(
+                    "links simbólicos ou reparse points não são analisados: {}",
+                    directory.display()
+                ),
+            ));
+        }
+        if !metadata.is_dir() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("não é diretório regular: {}", directory.display()),
+            ));
+        }
         for child in std::fs::read_dir(&directory)? {
             let child = child?;
             let child_path = child.path();
             let metadata = std::fs::symlink_metadata(&child_path)?;
             if is_link_or_reparse_point(&metadata) {
-                accumulator.sampled = true;
+                return Err(io::Error::new(
+                    io::ErrorKind::Unsupported,
+                    format!(
+                        "links simbólicos ou reparse points não são analisados: {}",
+                        child_path.display()
+                    ),
+                ));
             } else if metadata.is_dir() {
                 pending.push(child_path);
             } else if metadata.is_file() {
                 accumulator.add_file(&child_path)?;
+            } else {
+                return Err(io::Error::new(
+                    io::ErrorKind::Unsupported,
+                    format!(
+                        "tipo de entrada não suportado na análise: {}",
+                        child_path.display()
+                    ),
+                ));
             }
         }
     }
@@ -278,6 +320,23 @@ mod tests {
         assert_eq!(analysis.classification.kind, FileClassification::Text);
         assert!(analysis.estimated_compressibility_percent > 0);
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn sampled_profile_does_not_claim_all_content_compressed() {
+        let profile = AnalysisAccumulator {
+            files: 1,
+            total_size_bytes: 10,
+            analyzed_size_bytes: 5,
+            weighted_compressibility: 25,
+            already_compressed: true,
+            sampled: true,
+            ..AnalysisAccumulator::default()
+        }
+        .finish();
+        assert!(profile.sampled);
+        assert!(!profile.already_compressed);
+        assert_eq!(profile.estimated_compressibility_percent, 5);
     }
 
     #[test]

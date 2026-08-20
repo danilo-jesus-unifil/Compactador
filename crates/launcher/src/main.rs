@@ -51,16 +51,26 @@ fn execute(
 }
 
 fn main() {
-    let command = std::env::args().nth(1);
-    let Some(command) = command else {
+    let arguments = std::env::args_os().skip(1).collect::<Vec<_>>();
+    let Some(command) = arguments.first().and_then(|value| value.to_str()) else {
+        if arguments.is_empty() {
+            print_help();
+            return;
+        }
+        eprintln!("comando inválido: argumento não Unicode");
         print_help();
-        return;
+        std::process::exit(2);
     };
-    if matches!(command.as_str(), "-h" | "--help") {
+    if arguments.len() > 1 {
+        eprintln!("argumentos extras não são aceitos pelo launcher: {command}");
+        print_help();
+        std::process::exit(2);
+    }
+    if matches!(command, "-h" | "--help") {
         print_help();
         return;
     }
-    if !matches!(command.as_str(), "install" | "verify" | "repair" | "remove") {
+    if !matches!(command, "install" | "verify" | "repair" | "remove") {
         eprintln!("comando inválido: {command}");
         print_help();
         std::process::exit(2);
@@ -73,7 +83,7 @@ fn main() {
             std::process::exit(1);
         }
     };
-    match execute(&command, executable) {
+    match execute(command, executable) {
         Ok(report) => {
             println!("Estado: {:?}", report.state);
             for message in report.messages {

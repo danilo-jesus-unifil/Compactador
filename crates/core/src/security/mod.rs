@@ -2,8 +2,14 @@ use crate::error::{CoreError, CoreResult};
 use std::path::{Component, Path, PathBuf};
 
 pub fn safe_relative_path(path: &Path) -> CoreResult<PathBuf> {
-    let raw = path.to_string_lossy();
-    if path.is_absolute()
+    let raw = path.to_str().ok_or_else(|| {
+        CoreError::InvalidInput(format!(
+            "caminho armazenado não é Unicode válido: {}",
+            path.display()
+        ))
+    })?;
+    if raw.contains('\0')
+        || path.is_absolute()
         || raw.starts_with('/')
         || raw.starts_with('\\')
         || raw.contains(':')
@@ -44,6 +50,7 @@ mod tests {
             "C:\\arquivo.txt",
             "\\\\servidor\\share\\arquivo.txt",
             "pasta\\..\\arquivo.txt",
+            "arquivo\0invalido.txt",
         ] {
             assert!(
                 safe_relative_path(Path::new(path)).is_err(),

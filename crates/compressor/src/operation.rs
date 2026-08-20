@@ -1,6 +1,7 @@
 use compactador_core::analysis::analyze_selection;
 use compactador_core::container::{
-    compress_inputs_with_strategy, ArchiveSummary, ContainerCompression,
+    compress_inputs_with_strategy_and_validation, ArchiveSummary, ContainerCompression,
+    ContainerProgressCallbacks,
 };
 use compactador_core::error::{CoreError, CoreResult};
 use compactador_core::models::{OperationId, OperationPhase, ResourceProfile};
@@ -66,11 +67,9 @@ pub fn run_operation(
     reporter: &dyn ProgressReporter,
 ) -> CoreResult<OperationResult> {
     let operation_id = OperationId::new();
-    let initial_total_bytes = request
-        .inputs
-        .iter()
-        .map(|input| input.size_bytes.unwrap_or(0))
-        .sum();
+    let initial_total_bytes = request.inputs.iter().fold(0_u64, |total, input| {
+        total.saturating_add(input.size_bytes.unwrap_or(0))
+    });
     report(
         reporter,
         operation_id,
@@ -127,15 +126,7 @@ pub fn run_operation(
             )))
         }
     };
-    report(
-        reporter,
-        operation_id,
-        OperationPhase::Validating,
-        total_bytes,
-        total_bytes,
-        "validando integridade do container",
-    );
-    let summary = compress_inputs_with_strategy(
+    let summary = compress_inputs_with_strategy_and_validation(
         request
             .inputs
             .iter()
@@ -145,26 +136,39 @@ pub fn run_operation(
         request.level,
         compression,
         &|| token.is_cancelled(),
-        &|completed_bytes| {
-            report(
-                reporter,
-                operation_id,
-                OperationPhase::Compressing,
-                completed_bytes,
-                total_bytes,
-                "compactando em streaming",
-            );
+        ContainerProgressCallbacks {
+            on_progress: &|completed_bytes| {
+                report(
+                    reporter,
+                    operation_id,
+                    OperationPhase::Compressing,
+                    completed_bytes,
+                    total_bytes,
+                    "compactando em streaming",
+                );
+            },
+            on_validation_start: &|| {
+                report(
+                    reporter,
+                    operation_id,
+                    OperationPhase::Validating,
+                    0,
+                    total_bytes,
+                    "validando integridade do container",
+                );
+            },
+            on_finalizing_start: &|| {
+                report(
+                    reporter,
+                    operation_id,
+                    OperationPhase::Finalizing,
+                    total_bytes,
+                    total_bytes,
+                    "finalizando arquivo",
+                );
+            },
         },
     )?;
-    ensure_not_cancelled(token)?;
-    report(
-        reporter,
-        operation_id,
-        OperationPhase::Finalizing,
-        total_bytes,
-        total_bytes,
-        "finalizando arquivo",
-    );
     report(
         reporter,
         operation_id,
@@ -225,6 +229,18 @@ mod tests {
         }
     }
 
+    struct CancellingReporter {
+        token: CancellationToken,
+    }
+
+    impl ProgressReporter for CancellingReporter {
+        fn report(&self, event: ProgressEvent) {
+            if event.phase == OperationPhase::Compressing && event.completed_bytes > 0 {
+                self.token.cancel();
+            }
+        }
+    }
+
     #[test]
     fn reports_real_phases_and_creates_output() {
         let root = std::env::temp_dir().join(format!(
@@ -256,20 +272,31 @@ mod tests {
         .expect("operation");
         assert_eq!(result.strategy.level, CompressionLevel::Normal);
         assert!(output.exists());
-        let phases = reporter
-            .0
-            .lock()
-            .expect("lock")
-            .iter()
-            .map(|event| event.phase)
-            .collect::<Vec<_>>();
+        let events = reporter.0.lock().expect("lock").clone();
+        let phases = events.iter().map(|event| event.phase).collect::<Vec<_>>();
         assert!(phases.contains(&OperationPhase::Analyzing));
         assert!(phases.contains(&OperationPhase::Validating));
         assert!(phases.contains(&OperationPhase::Completed));
-        assert!(reporter
-            .0
-            .lock()
-            .expect("lock")
+        let last_compressing = phases
+            .iter()
+            .rposition(|phase| *phase == OperationPhase::Compressing)
+            .expect("compressing phase");
+        let validating = phases
+            .iter()
+            .position(|phase| *phase == OperationPhase::Validating)
+            .expect("validating phase");
+        let finalizing = phases
+            .iter()
+            .position(|phase| *phase == OperationPhase::Finalizing)
+            .expect("finalizing phase");
+        let completed = phases
+            .iter()
+            .position(|phase| *phase == OperationPhase::Completed)
+            .expect("completed phase");
+        assert!(last_compressing < validating);
+        assert!(validating < finalizing);
+        assert!(finalizing < completed);
+        assert!(events
             .iter()
             .any(|event| event.phase == OperationPhase::Compressing && event.completed_bytes > 0));
         let _ = fs::remove_dir_all(root);
@@ -309,6 +336,42 @@ mod tests {
             .entries
             .iter()
             .any(|entry| entry.is_directory));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn cancellation_during_streaming_discards_partial_output() {
+        let root = std::env::temp_dir().join(format!(
+            "compactador-cancel-stream-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).expect("create root");
+        let input = root.join("entrada.bin");
+        fs::write(&input, vec![b'x'; 256 * 1024]).expect("write input");
+        let request = SelectionRequest::parse([
+            OsString::from("--compress"),
+            OsString::from("normal"),
+            OsString::from("--"),
+            input.as_os_str().to_os_string(),
+        ])
+        .expect("request");
+        let output = root.join("saida.zip");
+        let token = CancellationToken::default();
+        let reporter = CancellingReporter {
+            token: token.clone(),
+        };
+        let result = run_operation(
+            &request,
+            output.clone(),
+            ResourceProfile::default(),
+            &token,
+            &reporter,
+        );
+        assert!(matches!(result, Err(CoreError::Cancelled)));
+        assert!(!output.exists());
         let _ = fs::remove_dir_all(root);
     }
 

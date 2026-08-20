@@ -43,7 +43,7 @@ where
         } else if present == 0 && mismatched == 0 {
             InstallationState::NotInstalled
         } else if mismatched > 0 {
-            InstallationState::Broken
+            InstallationState::RepairRequired
         } else {
             InstallationState::PartiallyInstalled
         })
@@ -111,8 +111,10 @@ where
         let mut changed = 0_usize;
         let mut messages = vec![format!("remoção iniciada a partir do estado {before:?}")];
         for entry in self.definition.entries.iter().rev() {
-            self.backend.delete(entry)?;
-            changed += 1;
+            if self.entry_matches(entry)? {
+                self.backend.delete(entry)?;
+                changed += 1;
+            }
         }
 
         let mut after = self.inspect()?;
@@ -124,6 +126,7 @@ where
             for entry in self.definition.entries.iter().rev() {
                 if self.entry_matches(entry)? {
                     self.backend.delete(entry)?;
+                    changed += 1;
                 }
             }
             after = self.inspect()?;
@@ -199,9 +202,53 @@ mod tests {
     fn removal_only_targets_declared_entries() {
         let definition = expected_definition(Path::new("C:\\Compactador\\compressor.exe"));
         let registry = InMemoryRegistry::with_entries(definition.entries.clone());
+        let foreign = RegistryEntry {
+            hive: crate::registry::RegistryHive::CurrentUser,
+            key: definition.entries[0].key.clone(),
+            value_name: Some("ThirdPartyValue".to_owned()),
+            value: "preserve-me".to_owned(),
+        };
+        registry
+            .write(&foreign)
+            .expect("foreign value should write");
         let manager = InstallationManager::new(registry.clone(), definition);
         let report = manager.remove().expect("removal should succeed");
         assert!(report.verified);
-        assert_eq!(registry.len(), 0);
+        assert_eq!(registry.len(), 1);
+        assert_eq!(
+            registry
+                .read(foreign.hive, &foreign.key, foreign.value_name.as_deref())
+                .ok()
+                .flatten(),
+            Some(foreign.value)
+        );
+    }
+
+    #[test]
+    fn removal_does_not_delete_mismatched_declared_value() {
+        let definition = expected_definition(Path::new("C:\\Compactador\\compressor.exe"));
+        let registry = InMemoryRegistry::with_entries(definition.entries.clone());
+        let mismatched = definition.entries[0].clone();
+        registry
+            .write(&RegistryEntry {
+                value: "foreign-owner".to_owned(),
+                ..mismatched.clone()
+            })
+            .expect("mismatched value should write");
+        let manager = InstallationManager::new(registry.clone(), definition);
+        let report = manager.remove().expect("removal should complete");
+        assert!(!report.verified);
+        assert_eq!(report.state, InstallationState::RepairRequired);
+        assert_eq!(
+            registry
+                .read(
+                    mismatched.hive,
+                    &mismatched.key,
+                    mismatched.value_name.as_deref()
+                )
+                .ok()
+                .flatten(),
+            Some("foreign-owner".to_owned())
+        );
     }
 }
