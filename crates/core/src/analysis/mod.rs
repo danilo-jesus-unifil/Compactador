@@ -139,6 +139,7 @@ pub fn analyze_selection(inputs: &[InputEntry]) -> io::Result<SelectionAnalysis>
 #[derive(Default)]
 struct AnalysisAccumulator {
     files: u64,
+    analyzed_files: u64,
     directories: u64,
     total_size_bytes: u64,
     analyzed_size_bytes: u64,
@@ -166,13 +167,14 @@ impl AnalysisAccumulator {
                 format!("não é arquivo regular: {}", path.display()),
             ));
         }
+        self.files = self.files.saturating_add(1);
         self.total_size_bytes = self.total_size_bytes.saturating_add(metadata.len());
-        if self.files as usize >= MAX_DIRECTORY_ANALYSIS_FILES {
+        if self.analyzed_files >= MAX_DIRECTORY_ANALYSIS_FILES as u64 {
             self.sampled = true;
             return Ok(());
         }
         let analysis = analyze_file(path)?;
-        self.files += 1;
+        self.analyzed_files = self.analyzed_files.saturating_add(1);
         self.analyzed_size_bytes = self.analyzed_size_bytes.saturating_add(analysis.size_bytes);
         self.weighted_compressibility = self.weighted_compressibility.saturating_add(
             analysis
@@ -344,6 +346,7 @@ mod tests {
     fn sampled_profile_does_not_claim_all_content_compressed() {
         let profile = AnalysisAccumulator {
             files: 1,
+            analyzed_files: 1,
             total_size_bytes: 10,
             analyzed_size_bytes: 5,
             weighted_compressibility: 25,
@@ -355,6 +358,29 @@ mod tests {
         assert!(profile.sampled);
         assert!(!profile.already_compressed);
         assert_eq!(profile.estimated_compressibility_percent, 5);
+    }
+
+    #[test]
+    fn reports_total_file_count_when_analysis_is_sampled() {
+        let root = std::env::temp_dir().join(format!(
+            "compactador-analysis-large-directory-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).expect("create root");
+        let file_count = MAX_DIRECTORY_ANALYSIS_FILES + 1;
+        for index in 0..file_count {
+            fs::write(root.join(format!("arquivo-{index:04}.txt")), b"dados").expect("write file");
+        }
+        let input = InputEntry::new(root.clone(), InputKind::Directory, None);
+        let analysis = analyze_selection(&[input]).expect("large directory analysis");
+        assert_eq!(analysis.files, file_count as u64);
+        assert_eq!(analysis.total_size_bytes, (file_count * 5) as u64);
+        assert!(analysis.sampled);
+        assert!(!analysis.already_compressed);
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]

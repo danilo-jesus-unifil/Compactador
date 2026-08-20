@@ -9,7 +9,7 @@ use compactador_core::selection::{
     HeuristicStrategySelector, InputProfile, SelectionRequest, StrategySelector,
 };
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -88,7 +88,7 @@ pub fn run_operation(
         total_bytes,
         "análise concluída",
     );
-    ensure_not_cancelled(token)?;
+    ensure_not_cancelled(token, reporter, operation_id, total_bytes)?;
     let profile = InputProfile {
         total_size_bytes: analysis.total_size_bytes,
         file_count: analysis.files,
@@ -108,7 +108,7 @@ pub fn run_operation(
             strategy.algorithm_id, strategy.rationale
         ),
     );
-    ensure_not_cancelled(token)?;
+    ensure_not_cancelled(token, reporter, operation_id, total_bytes)?;
     report(
         reporter,
         operation_id,
@@ -126,7 +126,9 @@ pub fn run_operation(
             )))
         }
     };
-    let summary = compress_inputs_with_strategy_and_validation(
+    let completed_bytes = Arc::new(AtomicU64::new(0));
+    let progress_state = Arc::clone(&completed_bytes);
+    let summary = match compress_inputs_with_strategy_and_validation(
         request
             .inputs
             .iter()
@@ -138,6 +140,7 @@ pub fn run_operation(
         &|| token.is_cancelled(),
         ContainerProgressCallbacks {
             on_progress: &|completed_bytes| {
+                progress_state.store(completed_bytes, Ordering::Release);
                 report(
                     reporter,
                     operation_id,
@@ -168,7 +171,21 @@ pub fn run_operation(
                 );
             },
         },
-    )?;
+    ) {
+        Ok(summary) => summary,
+        Err(CoreError::Cancelled) => {
+            report(
+                reporter,
+                operation_id,
+                OperationPhase::Cancelled,
+                completed_bytes.load(Ordering::Acquire),
+                total_bytes,
+                "operação cancelada; temporários foram descartados",
+            );
+            return Err(CoreError::Cancelled);
+        }
+        Err(error) => return Err(error),
+    };
     report(
         reporter,
         operation_id,
@@ -185,8 +202,21 @@ pub fn run_operation(
     })
 }
 
-fn ensure_not_cancelled(token: &CancellationToken) -> CoreResult<()> {
+fn ensure_not_cancelled(
+    token: &CancellationToken,
+    reporter: &dyn ProgressReporter,
+    operation_id: OperationId,
+    total_bytes: u64,
+) -> CoreResult<()> {
     if token.is_cancelled() {
+        report(
+            reporter,
+            operation_id,
+            OperationPhase::Cancelled,
+            0,
+            total_bytes,
+            "operação cancelada antes do início da próxima fase",
+        );
         Err(CoreError::Cancelled)
     } else {
         Ok(())
@@ -231,10 +261,12 @@ mod tests {
 
     struct CancellingReporter {
         token: CancellationToken,
+        events: Mutex<Vec<ProgressEvent>>,
     }
 
     impl ProgressReporter for CancellingReporter {
         fn report(&self, event: ProgressEvent) {
+            self.events.lock().expect("lock").push(event.clone());
             if event.phase == OperationPhase::Compressing && event.completed_bytes > 0 {
                 self.token.cancel();
             }
@@ -362,6 +394,7 @@ mod tests {
         let token = CancellationToken::default();
         let reporter = CancellingReporter {
             token: token.clone(),
+            events: Mutex::new(Vec::new()),
         };
         let result = run_operation(
             &request,
@@ -372,6 +405,11 @@ mod tests {
         );
         assert!(matches!(result, Err(CoreError::Cancelled)));
         assert!(!output.exists());
+        let events = reporter.events.lock().expect("lock").clone();
+        assert_eq!(
+            events.last().map(|event| event.phase),
+            Some(OperationPhase::Cancelled)
+        );
         let _ = fs::remove_dir_all(root);
     }
 
@@ -396,14 +434,20 @@ mod tests {
         .expect("request");
         let token = CancellationToken::default();
         token.cancel();
+        let reporter = RecordingReporter::default();
         let result = run_operation(
             &request,
             root.join("saida.zip"),
             ResourceProfile::default(),
             &token,
-            &NullReporter,
+            &reporter,
         );
         assert!(matches!(result, Err(CoreError::Cancelled)));
+        let events = reporter.0.lock().expect("lock").clone();
+        assert_eq!(
+            events.last().map(|event| event.phase),
+            Some(OperationPhase::Cancelled)
+        );
         let _ = fs::remove_dir_all(root);
     }
 }
