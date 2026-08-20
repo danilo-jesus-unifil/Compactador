@@ -11,11 +11,11 @@ struct ConsoleReporter;
 
 impl ProgressReporter for ConsoleReporter {
     fn report(&self, event: ProgressEvent) {
-        let progress = if event.total_bytes == 0 {
-            0
-        } else {
-            event.completed_bytes.saturating_mul(100) / event.total_bytes
-        };
+        let progress = event
+            .completed_bytes
+            .saturating_mul(100)
+            .checked_div(event.total_bytes)
+            .unwrap_or(0);
         println!(
             "[{}] {:>3}% {}",
             phase_name(event.phase),
@@ -100,9 +100,11 @@ fn main() {
         &reporter,
     ) {
         Ok(result) => println!(
-            "Arquivo criado: {} ({} bytes)",
+            "Operação {} concluída com {} ({} bytes; estratégia {})",
+            result.operation_id,
             result.output.display(),
-            result.summary.total_compressed_bytes
+            result.summary.total_compressed_bytes,
+            result.strategy.algorithm_id
         ),
         Err(CoreError::Cancelled) => {
             eprintln!("operação cancelada; temporários foram descartados");

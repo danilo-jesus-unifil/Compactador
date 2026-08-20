@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.2] — 2026-08-20
+
+### Correções finais
+
+A saída de progresso agora usa divisão segura compatível com as verificações Clippy do runner Windows, e o compressor reporta o identificador e a estratégia da operação para manter o resultado usado e auditável. A versão foi validada localmente antes da publicação da tag.
+
 ## [0.1.1] — 2026-08-20
 
 ### Correções
