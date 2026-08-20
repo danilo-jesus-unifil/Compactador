@@ -22,7 +22,9 @@ jobs:
           toolchain: stable-x86_64-pc-windows-msvc
 
       - name: Validate
+        shell: bash
         run: |
+          set -euo pipefail
           cargo fmt --all -- --check
           cargo check --workspace --locked
           cargo test --workspace --locked

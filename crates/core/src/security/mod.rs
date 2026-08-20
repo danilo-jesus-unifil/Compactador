@@ -13,8 +13,14 @@ pub fn safe_relative_path(path: &Path) -> CoreResult<PathBuf> {
         || raw.starts_with('/')
         || raw.starts_with('\\')
         || raw.contains(':')
-        || raw.contains('\\')
     {
+        return Err(CoreError::InvalidInput(format!(
+            "caminho armazenado deve ser relativo e portátil: {}",
+            path.display()
+        )));
+    }
+    #[cfg(not(windows))]
+    if raw.contains('\\') {
         return Err(CoreError::InvalidInput(format!(
             "caminho armazenado deve ser relativo e portátil: {}",
             path.display()
@@ -131,5 +137,15 @@ mod tests {
     fn accepts_nested_portable_relative_path() {
         let result = safe_relative_path(Path::new("pasta/arquivo.txt"));
         assert_eq!(result.ok().as_deref(), Some(Path::new("pasta/arquivo.txt")));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn accepts_windows_native_relative_path() {
+        let result = safe_relative_path(Path::new(r"pasta\\arquivo.txt"));
+        assert_eq!(
+            result.ok().as_deref(),
+            Some(Path::new(r"pasta\\arquivo.txt"))
+        );
     }
 }
