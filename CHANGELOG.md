@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.8] — 2026-08-20
+
+### Correções de análise e robustez
+
+A análise de seleção agora rejeita explicitamente uma seleção vazia. Também deixou de ignorar silenciosamente um `InputEntry` declarado como arquivo quando o caminho real é diretório, link/reparse point ou outro tipo não regular. A falha é classificada como `InvalidInput` ou `Unsupported`, preservando a distinção para o chamador e evitando estratégia/progresso baseados em totais incompletos.
+
+Foram adicionados testes para seleção vazia e divergência entre o tipo declarado e o tipo real. Nenhuma funcionalidade correta da v0.1.7 foi removida.
+
+### Validação
+
+A passagem repetida aprovou `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, Clippy estrito locked, build release locked, `cargo tree -d`, `cargo metadata --locked`, `git diff --check` e E2E. A suíte possui 34 testes: 17 do core, 9 do container, 4 do compressor e 4 da integração Windows em memória. `cargo-audit` não estava disponível.
+
+### Limitações conhecidas
+
+A validação visual do Explorer, instalação e remoção reais do Registry, Windows 10/11, UNC, caminhos longos e seleções múltiplas extensas continuam dependentes de testes manuais Windows. O CLI ainda não instala handler próprio de Ctrl+C; o cancelamento validado é cooperativo pela API. O host Linux não possui target MSVC local.
+
 ## [0.1.7] — 2026-08-20
 
 ### Auditoria de contratos e consistência

@@ -178,3 +178,21 @@ Após as alterações, passaram `cargo fmt --all -- --check`, `cargo check --wor
 As correções de código foram separadas no commit `cca6815`, com a mensagem `fix: clarify resource and protocol contracts`. A preparação do release foi commitada em `1e10e7c`, com a mensagem `chore: prepare release v0.1.7`; a versão do workspace foi incrementada de `0.1.6` para `0.1.7`, o lockfile foi atualizado e changelog, README e notas públicas foram atualizados. A tag anotada `v0.1.7` aponta para `1e10e7c` e está publicada em https://github.com/danilo-jesus-unifil/Compactador/releases/tag/v0.1.7.
 
 O workflow [Windows release](https://github.com/danilo-jesus-unifil/Compactador/actions/runs/32414585227) terminou com sucesso no job `Build Windows release`. A release publicou [`Compactador-v0.1.7-windows-x86_64.zip`](https://github.com/danilo-jesus-unifil/Compactador/releases/download/v0.1.7/Compactador-v0.1.7-windows-x86_64.zip) e [`Compactador-v0.1.7-windows-x86_64.zip.sha256`](https://github.com/danilo-jesus-unifil/Compactador/releases/download/v0.1.7/Compactador-v0.1.7-windows-x86_64.zip.sha256). Os dois artefatos foram baixados; o checksum retornou `OK`, e o ZIP contém `compactador-launcher.exe` e `compactador-compressor.exe`. Esta atualização registra o resultado pós-CI; após o commit documental, o working tree deverá permanecer limpo e sincronizado com `origin/main`.
+
+## Nova passagem repetida após v0.1.7 — análise estrita de entradas
+
+A auditoria foi reiniciada sobre `main` limpo, com `v0.1.7` publicada e o workflow Windows anterior concluído. O prompt completo e as boas práticas internas foram lidos antes da inspeção. Foram novamente confrontados os requisitos funcionais, CLI/UX, arquitetura, segurança, desempenho, compatibilidade, modularização, dependências, regressão e documentação.
+
+### Achado confirmado
+
+A API pública `analyze_selection` aceitava uma seleção vazia. Além disso, `AnalysisAccumulator::add_file` retornava sucesso quando recebia um `InputEntry` declarado como arquivo cujo caminho real havia virado diretório, link/reparse point ou outro tipo não regular. Isso permitia uma análise parcialmente silenciosa, com totais e justificativa de estratégia incompletos, antes de uma eventual revalidação posterior do container.
+
+A correção agora rejeita seleção vazia com `InvalidInput`, links/reparse points com `Unsupported` e caminhos não regulares com `InvalidInput`. Foram adicionados os testes `rejects_empty_selection_analysis` e `rejects_file_entry_that_is_not_a_regular_file`. Arquivos e diretórios válidos continuam usando o mesmo fluxo.
+
+### Segunda auditoria e gates
+
+Após a correção, a segunda revisão reexaminou análise, container, segurança, CLI, Registry, contratos públicos, documentação, dependências e workflow. Passaram `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`, `cargo build --workspace --release --locked`, `cargo tree -d`, `cargo metadata --locked`, `git diff --check` e o E2E. A suíte conta 34 testes: 17 do core, 9 do container, 4 do compressor e 4 da integração Windows em memória. `cargo-audit` permanece indisponível.
+
+### Preparação do release 0.1.8
+
+A correção de código foi separada no commit `442e08a`, com a mensagem `fix(core): reject invalid analysis selections`. A versão do workspace foi incrementada de `0.1.7` para `0.1.8`, o lockfile será atualizado e changelog, README e notas públicas serão revisados antes da tag anotada e do release. A publicação só ocorrerá após o working tree limpo e o gate final.
