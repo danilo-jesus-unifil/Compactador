@@ -344,3 +344,23 @@ A versão do workspace e dos quatro pacotes locais foi incrementada de `0.1.12` 
 O workflow [Windows release](https://github.com/danilo-jesus-unifil/Compactador/actions/runs/32420085424) terminou com sucesso no job `Build Windows release` em `windows-latest`, incluindo a suíte debug e release. A release publicou [`Compactador-v0.1.13-windows-x86_64.zip`](https://github.com/danilo-jesus-unifil/Compactador/releases/download/v0.1.13/Compactador-v0.1.13-windows-x86_64.zip), com 318.354 bytes, e [`Compactador-v0.1.13-windows-x86_64.zip.sha256`](https://github.com/danilo-jesus-unifil/Compactador/releases/download/v0.1.13/Compactador-v0.1.13-windows-x86_64.zip.sha256), com 106 bytes. O pacote baixado contém `compactador-launcher.exe` e `compactador-compressor.exe`; `sha256sum -c` retornou `OK`.
 
 Permanecem como limitações a validação visual do Explorer, Registry real, Windows 10/11, UNC, caminhos longos e seleções múltiplas extensas em Windows; a ausência de handler próprio de Ctrl+C no CLI; a proteção TOCTOU não absoluta do diretório final de extração em Unix; a indisponibilidade de `cargo-audit`; o aviso de depreciação do runtime Node.js 20 em actions atuais; e o caráter reservado, não ativo, de `CompressionRequest`, `OperationStatus` e `parallel`.
+
+## Nova passagem após v0.1.13 — auditoria de manutenção sem novos achados funcionais
+
+A nova auditoria foi iniciada sobre `main` limpo, com a release `v0.1.13` publicada e seus artefatos Windows verificados. O prompt completo e `docs/BOAS_PRATICAS_GIT_E_PROJETO.md` foram lidos antes da inspeção. Foram reavaliados requisitos funcionais, CLI/UX, arquitetura, segurança, desempenho, compatibilidade Windows, modularização, dependências, documentação, workflow e regressões.
+
+### Resultado da revisão independente
+
+A linha de base passou com 38 testes, todos os comandos de qualidade locais e o E2E dos binários release. A varredura final confirmou as correções anteriores de segurança de caminhos Windows, rollback de instalação, preservação de conflitos no Registry, cancelamento cooperativo e validação debug/release no workflow Windows.
+
+Não foram encontrados novos bugs funcionais relevantes, placeholders operacionais, dependências duplicadas, perda de Unicode, traversal, publicação sem validação, remoção indevida de valores externos, uso de dados falsos ou divergências adicionais relevantes entre código e documentação. Nenhuma mudança funcional foi necessária nesta passagem.
+
+### Validação pós-auditoria
+
+Passaram `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`, `cargo build --workspace --release --locked`, `cargo tree -d`, `cargo metadata --locked --format-version 1`, `git diff --check` e o E2E dos binários release. A suíte permanece com 38 testes: 18 do core, 9 do container, 5 do compressor e 6 da integração Windows em memória. `cargo-audit` permanece indisponível.
+
+### Preparação do release 0.1.14
+
+A versão do workspace e dos quatro pacotes locais foi incrementada de `0.1.13` para `0.1.14`; `Cargo.lock`, `CHANGELOG.md`, auditoria e notas públicas foram atualizados. A versão é de manutenção documental do estado auditado; não introduz mudança funcional.
+
+Permanecem como limitações a validação visual do Explorer, Registry real, Windows 10/11, UNC, caminhos longos e seleções múltiplas extensas em Windows; a ausência de handler próprio de Ctrl+C no CLI; a proteção TOCTOU não absoluta do diretório final de extração em Unix; a indisponibilidade de `cargo-audit`; o aviso de depreciação do runtime Node.js 20 em actions atuais; e o caráter reservado, não ativo, de `CompressionRequest`, `OperationStatus` e `parallel`.

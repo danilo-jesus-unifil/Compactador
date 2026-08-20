@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.14] — 2026-08-20
+
+### Auditoria de manutenção
+
+A nova auditoria completa após a v0.1.13 confirmou as correções anteriores de segurança de caminhos Windows, rollback de instalação, preservação de conflitos no Registry, cancelamento cooperativo e validação release no workflow. Não foram encontrados novos bugs funcionais relevantes, placeholders operacionais, dependências duplicadas ou divergências adicionais relevantes entre implementação e documentação.
+
+Nenhuma mudança funcional foi necessária nesta passagem. A versão registra o estado auditado e mantém a suíte com 38 testes: 18 do core, 9 do container, 5 do compressor e 6 da integração Windows em memória.
+
+### Validação
+
+Foram aprovados `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, Clippy estrito locked, `cargo build --workspace --release --locked`, `cargo tree -d`, `cargo metadata --locked --format-version 1`, `git diff --check` e o E2E dos binários release. `cargo-audit` permanece indisponível no ambiente.
+
+### Limitações conhecidas
+
+A validação visual do Explorer, instalação e remoção reais do Registry, Windows 10/11, UNC, caminhos longos e seleções múltiplas extensas continuam dependentes de testes manuais Windows. O CLI não instala handler próprio de Ctrl+C; o cancelamento exposto pelo pipeline permanece cooperativo pela API. O rollback do Registry é de melhor esforço quando o próprio backend falha durante a restauração. O host Linux não possui target MSVC local, e a proteção contra TOCTOU do diretório final de extração não é absoluta em Unix.
+
 ## [0.1.13] — 2026-08-20
 
 ### Validação de release
