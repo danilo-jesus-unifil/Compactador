@@ -22,20 +22,24 @@ A suíte possui 38 testes: 18 testes do core, 9 testes de integração do contai
 
 ## Compatibilidade, artefatos e limitações
 
-A tag `v0.1.13` acionará o [workflow Windows](https://github.com/danilo-jesus-unifil/Compactador/actions) em `windows-latest`. O resultado do workflow, os links dos artefatos e o checksum serão registrados nesta seção somente após a conclusão real do CI e a verificação local do SHA-256.
+A tag `v0.1.13` acionou o [workflow Windows](https://github.com/danilo-jesus-unifil/Compactador/actions/runs/32420085424), concluído com **success** em `windows-latest`. O job `Build Windows release` confirmou a validação debug e release, a compilação MSVC, empacotou os executáveis e publicou os artefatos.
 
 A validação visual do Explorer, instalação e remoção reais do Registry, Windows 10/11, UNC, caminhos longos e seleções múltiplas extensas continuam dependentes de testes manuais Windows. O CLI não instala handler próprio de Ctrl+C; o cancelamento do pipeline é cooperativo pela API. O rollback do Registry é de melhor esforço quando o próprio backend falha durante a restauração. O host Linux não possui target MSVC local, e a proteção contra TOCTOU do diretório final de extração não é absoluta em Unix. O workflow ainda informa um aviso não bloqueante sobre o runtime Node.js 20 de actions atuais.
 
 Os contratos públicos reservados continuam não sendo anunciados como funcionalidades ativas: não há IPC baseado em `CompressionRequest`, store global de `OperationStatus` nem paralelismo de arquivos independentes nesta versão.
+
+## Artefatos Windows verificados
+
+O pacote [`Compactador-v0.1.13-windows-x86_64.zip`](https://github.com/danilo-jesus-unifil/Compactador/releases/download/v0.1.13/Compactador-v0.1.13-windows-x86_64.zip) tem 318.354 bytes e contém `compactador-launcher.exe` e `compactador-compressor.exe`. O arquivo de checksum [`Compactador-v0.1.13-windows-x86_64.zip.sha256`](https://github.com/danilo-jesus-unifil/Compactador/releases/download/v0.1.13/Compactador-v0.1.13-windows-x86_64.zip.sha256) tem 106 bytes; a verificação local com `sha256sum -c` retornou **OK**.
 
 ## Referências
 
 [1]: https://github.com/danilo-jesus-unifil/Compactador/actions "GitHub Actions do Compactador"
 [2]: https://github.com/danilo-jesus-unifil/Compactador "Repositório do Compactador"
 
-Sem artefatos Windows verificados, esta nota não afirma que a compilação MSVC ou o pacote final foram publicados.
+A publicação e a verificação dos artefatos acima foram concluídas após o workflow Windows; as limitações de validação manual permanecem explicitamente separadas e não são tratadas como cobertas pelo CI.
 
 ---
 
 **Versão:** `0.1.13`
-**Status local antes do CI:** validações Linux concluídas; workflow Windows pendente.
+**Status:** release Windows publicado e checksum verificado.
