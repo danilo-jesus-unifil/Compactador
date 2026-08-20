@@ -1,6 +1,6 @@
 # Auditoria e aprimoramento — achados iniciais
 
-Este documento registra a primeira passagem da auditoria solicitada no prompt de revisão. Os achados foram obtidos por leitura do código atual, inspeção da estrutura, execução dos testes existentes e comparação com os requisitos anteriores. Ele será atualizado após as correções e a segunda revisão.
+Este documento registra as passagens da auditoria solicitada no prompt de revisão. Os achados foram obtidos por leitura do código, inspeção da estrutura, execução dos testes e comparação com os requisitos anteriores; cada nova passagem é acrescentada ao final, preservando o histórico das decisões.
 
 ## Classificação inicial
 
@@ -195,4 +195,6 @@ Após a correção, a segunda revisão reexaminou análise, container, seguranç
 
 ### Preparação do release 0.1.8
 
-A correção de código foi separada no commit `442e08a`, com a mensagem `fix(core): reject invalid analysis selections`. A versão do workspace foi incrementada de `0.1.7` para `0.1.8`, o lockfile será atualizado e changelog, README e notas públicas serão revisados antes da tag anotada e do release. A publicação só ocorrerá após o working tree limpo e o gate final.
+A correção de código foi separada no commit `442e08a`, com a mensagem `fix(core): reject invalid analysis selections`. A preparação do release foi commitada em `d94b156`, com a mensagem `chore: prepare release v0.1.8`; a versão do workspace foi incrementada de `0.1.7` para `0.1.8`, o lockfile foi atualizado, e changelog e notas públicas foram revisados. A tag anotada `v0.1.8` aponta para `d94b156` e está publicada em https://github.com/danilo-jesus-unifil/Compactador/releases/tag/v0.1.8.
+
+O workflow [Windows release](https://github.com/danilo-jesus-unifil/Compactador/actions/runs/32415522642) terminou com sucesso no job `Build Windows release`. A release publicou [`Compactador-v0.1.8-windows-x86_64.zip`](https://github.com/danilo-jesus-unifil/Compactador/releases/download/v0.1.8/Compactador-v0.1.8-windows-x86_64.zip) e [`Compactador-v0.1.8-windows-x86_64.zip.sha256`](https://github.com/danilo-jesus-unifil/Compactador/releases/download/v0.1.8/Compactador-v0.1.8-windows-x86_64.zip.sha256). Os artefatos foram baixados; o checksum retornou `OK`, e o ZIP contém `compactador-launcher.exe` e `compactador-compressor.exe`. Esta atualização registra o resultado pós-CI e será comitada separadamente para manter o branch principal sincronizado.
