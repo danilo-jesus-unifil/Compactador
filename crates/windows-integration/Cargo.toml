@@ -10,3 +10,6 @@ path = "src/lib.rs"
 
 [dependencies]
 compactador-core.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.52"
