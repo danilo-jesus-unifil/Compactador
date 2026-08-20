@@ -76,6 +76,9 @@ fn validate_windows_component(component: &std::ffi::OsStr, path: &Path) -> CoreR
             | "COM7"
             | "COM8"
             | "COM9"
+            | "COM¹"
+            | "COM²"
+            | "COM³"
             | "LPT1"
             | "LPT2"
             | "LPT3"
@@ -85,6 +88,9 @@ fn validate_windows_component(component: &std::ffi::OsStr, path: &Path) -> CoreR
             | "LPT7"
             | "LPT8"
             | "LPT9"
+            | "LPT¹"
+            | "LPT²"
+            | "LPT³"
     ) {
         return Err(CoreError::InvalidInput(format!(
             "componente de caminho reservado pelo Windows: {}",
@@ -107,6 +113,8 @@ mod tests {
             "pasta\\..\\arquivo.txt",
             "arquivo\0invalido.txt",
             "CON.txt",
+            "COM¹.txt",
+            "LPT³",
             "NUL",
             "arquivo?.txt",
             "arquivo.txt ",

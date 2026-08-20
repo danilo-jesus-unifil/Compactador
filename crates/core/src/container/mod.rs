@@ -201,7 +201,7 @@ fn append_input<W: Write + Seek>(
                 .ok_or_else(|| CoreError::InvalidInput("arquivo sem nome".to_owned()))?;
             let relative = PathBuf::from(name);
             let key = normalized_name(&relative)?;
-            if !names.insert(key.clone()) {
+            if !names.insert(archive_name_key(&key)) {
                 return Err(CoreError::InvalidInput(format!(
                     "nomes de entrada duplicados no container: {key}"
                 )));
@@ -250,14 +250,15 @@ fn append_directory<W: Write + Seek>(
         )));
     }
     let key = format!("{}/", normalized_name(relative)?);
-    if !names.insert(key.clone()) {
+    if !names.insert(archive_name_key(&key)) {
         return Err(CoreError::InvalidInput(format!(
             "nomes de entrada duplicados no container: {key}"
         )));
     }
     writer.add_directory(key, options).map_err(zip_error)?;
-    for child in fs::read_dir(directory)? {
-        let child = child?;
+    let mut children = fs::read_dir(directory)?.collect::<std::io::Result<Vec<_>>>()?;
+    children.sort_by_key(|child| child.file_name());
+    for child in children {
         let child_path = child.path();
         let metadata = fs::symlink_metadata(&child_path)?;
         let child_relative = relative.join(child.file_name());
@@ -279,7 +280,7 @@ fn append_directory<W: Write + Seek>(
             )?;
         } else if metadata.is_file() {
             let key = normalized_name(&child_relative)?;
-            if !names.insert(key.clone()) {
+            if !names.insert(archive_name_key(&key)) {
                 return Err(CoreError::InvalidInput(format!(
                     "nomes de entrada duplicados no container: {key}"
                 )));
@@ -315,7 +316,7 @@ pub fn validate_archive(path: impl AsRef<Path>) -> CoreResult<ArchiveSummary> {
         let mut entry = archive.by_index(index).map_err(zip_error)?;
         let relative = safe_zip_path(&entry)?;
         let name = normalized_name(&relative)?;
-        if !names.insert(name.clone()) {
+        if !names.insert(archive_name_key(&name)) {
             return Err(CoreError::InvalidInput(format!(
                 "entrada duplicada no container: {name}"
             )));
@@ -389,7 +390,7 @@ pub fn extract_archive(
             let mut entry = archive.by_index(index).map_err(zip_error)?;
             let relative = safe_zip_path(&entry)?;
             let name = normalized_name(&relative)?;
-            if !names.insert(name.clone()) {
+            if !names.insert(archive_name_key(&name)) {
                 return Err(CoreError::InvalidInput(format!(
                     "entrada duplicada no container: {name}"
                 )));
@@ -593,8 +594,8 @@ fn ensure_output_does_not_overlap_inputs(inputs: &[InputEntry], output: &Path) -
     for input in inputs {
         let input_path = fs::canonicalize(&input.path)?;
         let overlaps = match input.kind {
-            InputKind::File => input_path == output_path,
-            InputKind::Directory => output_path.starts_with(&input_path),
+            InputKind::File => paths_equal_for_target(&input_path, &output_path),
+            InputKind::Directory => path_is_within_for_target(&output_path, &input_path),
         };
         if overlaps {
             return Err(CoreError::InvalidInput(
@@ -603,6 +604,41 @@ fn ensure_output_does_not_overlap_inputs(inputs: &[InputEntry], output: &Path) -
         }
     }
     Ok(())
+}
+
+fn paths_equal_for_target(left: &Path, right: &Path) -> bool {
+    #[cfg(windows)]
+    {
+        path_comparison_key(left) == path_comparison_key(right)
+    }
+    #[cfg(not(windows))]
+    {
+        left == right
+    }
+}
+
+fn path_is_within_for_target(child: &Path, parent: &Path) -> bool {
+    #[cfg(windows)]
+    {
+        let child = path_comparison_key(child);
+        let parent = path_comparison_key(parent);
+        child == parent
+            || child
+                .strip_prefix(&parent)
+                .is_some_and(|suffix| suffix.starts_with('/'))
+    }
+    #[cfg(not(windows))]
+    {
+        child.starts_with(parent)
+    }
+}
+
+#[cfg(windows)]
+fn path_comparison_key(path: &Path) -> String {
+    path.to_string_lossy()
+        .replace('\\', "/")
+        .trim_end_matches('/')
+        .to_lowercase()
 }
 
 fn normalize_nonexistent_path(path: &Path) -> CoreResult<PathBuf> {
@@ -633,6 +669,10 @@ fn normalize_nonexistent_path(path: &Path) -> CoreResult<PathBuf> {
         normalized.push(component);
     }
     Ok(normalized)
+}
+
+fn archive_name_key(name: &str) -> String {
+    name.trim_end_matches('/').to_lowercase()
 }
 
 fn normalized_name(path: &Path) -> CoreResult<String> {

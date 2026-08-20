@@ -18,6 +18,12 @@ A crate `zip` é usada com os recursos mínimos necessários para Deflate, sem h
 
 A operação valida a seleção, analisa amostras pequenas, escolhe uma estratégia, grava em arquivo temporário, finaliza o ZIP, sincroniza o arquivo, valida todas as entradas, e somente então publica o arquivo no destino por hard link no mesmo diretório, sem substituir uma saída criada concorrentemente. Uma falha remove o temporário conhecido.
 
+## Determinismo e portabilidade de nomes
+
+A compactação percorre filhos de diretórios em ordem lexical explícita, em vez de depender da ordem de `read_dir`, para que a ordem dos entries e a amostra da análise sejam reproduzíveis entre filesystems. A validação e a extração também rejeitam entries que diferem apenas por maiúsculas/minúsculas, pois podem representar o mesmo caminho em volumes Windows mesmo quando o ZIP foi criado em um filesystem case-sensitive.
+
+A comparação case-insensitive é deliberadamente conservadora e complementa as regras já existentes para traversal, nomes reservados de dispositivos, caracteres proibidos e pontos ou espaços finais.
+
 ## Segurança de extração
 
 A extração rejeita nomes que não possam ser convertidos em caminhos relativos seguros, incluindo caminhos absolutos, componentes pai e separadores perigosos. Como o pacote é destinado ao Windows, também são rejeitados caracteres de controle ou proibidos, componentes terminados em ponto ou espaço e nomes reservados de dispositivos como `CON`, `NUL`, `COM1` e `LPT1`, inclusive quando recebem uma extensão. O limite de entradas e o tamanho expandido máximo são verificados antes e durante a leitura. Cada arquivo regular é escrito em temporário no mesmo diretório de destino, validado por CRC e publicado por hard link sem sobrescrita apenas depois da escrita completa.

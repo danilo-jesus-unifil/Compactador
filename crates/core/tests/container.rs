@@ -63,6 +63,45 @@ fn supports_directory_and_multiple_selection_without_following_symlinks() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[test]
+fn directory_entries_are_emitted_in_sorted_order() {
+    let root = temp_dir();
+    let folder = root.join("Projeto Rust");
+    fs::create_dir_all(&folder).expect("create folder");
+    fs::write(folder.join("z.txt"), b"z").expect("write z");
+    fs::write(folder.join("a.txt"), b"a").expect("write a");
+    let archive_path = root.join("sorted.zip");
+    compress_inputs(vec![folder], &archive_path, CompressionLevel::Normal)
+        .expect("compress directory");
+    let file = File::open(&archive_path).expect("open archive");
+    let mut archive = ZipArchive::new(BufReader::new(file)).expect("read archive");
+    let names = (0..archive.len())
+        .map(|index| archive.by_index(index).expect("entry").name().to_owned())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        names,
+        vec![
+            "Projeto Rust/".to_owned(),
+            "Projeto Rust/a.txt".to_owned(),
+            "Projeto Rust/z.txt".to_owned(),
+        ]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[cfg(windows)]
+#[test]
+fn rejects_case_insensitive_output_inside_input_directory() {
+    let root = temp_dir();
+    let input = root.join("Input");
+    let output = root.join("input").join("nested.zip");
+    fs::create_dir_all(&input).expect("create input");
+    fs::write(input.join("arquivo.txt"), b"dados").expect("write input");
+    assert!(compress_inputs(vec![input], &output, CompressionLevel::Normal).is_err());
+    assert!(!output.exists());
+    let _ = fs::remove_dir_all(root);
+}
+
 #[cfg(unix)]
 #[test]
 fn rejects_symlink_inside_directory() {
@@ -117,6 +156,26 @@ fn applies_store_strategy_and_reports_progress() {
         CompressionMethod::Stored
     );
     assert!(completed.get() > 0);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn rejects_case_insensitive_duplicate_archive_names() {
+    let root = temp_dir();
+    fs::create_dir_all(&root).expect("create root");
+    let archive = root.join("case-duplicate.zip");
+    let file = File::create(&archive).expect("create archive");
+    let mut writer = ZipWriter::new(file);
+    writer
+        .start_file("Foo.txt", FileOptions::default())
+        .expect("start first");
+    writer.write_all(b"first").expect("write first");
+    writer
+        .start_file("foo.txt", FileOptions::default())
+        .expect("start second");
+    writer.write_all(b"second").expect("write second");
+    writer.finish().expect("finish archive");
+    assert!(validate_archive(&archive).is_err());
     let _ = fs::remove_dir_all(root);
 }
 

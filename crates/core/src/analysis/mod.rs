@@ -240,8 +240,9 @@ fn analyze_directory(path: &Path, accumulator: &mut AnalysisAccumulator) -> io::
                 format!("não é diretório regular: {}", directory.display()),
             ));
         }
-        for child in std::fs::read_dir(&directory)? {
-            let child = child?;
+        let mut children = std::fs::read_dir(&directory)?.collect::<io::Result<Vec<_>>>()?;
+        children.sort_by_key(|child| child.file_name());
+        for child in children {
             let child_path = child.path();
             let metadata = std::fs::symlink_metadata(&child_path)?;
             if is_link_or_reparse_point(&metadata) {
