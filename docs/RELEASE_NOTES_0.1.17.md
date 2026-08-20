@@ -29,17 +29,19 @@ A validação local aprovou:
 - `git diff --check`
 - `bash /home/ubuntu/full_audit_e2e.sh`
 
-A suíte local possui 41 testes executáveis: 18 do core, 12 do container, 5 do compressor e 6 da integração Windows em memória. A confirmação Windows real e a publicação dos artefatos dependem do workflow acionado pela tag.
+A suíte local possui 41 testes executáveis: 18 do core, 12 do container, 5 do compressor e 6 da integração Windows em memória. O [workflow Windows #32423666352](https://github.com/danilo-jesus-unifil/Compactador/actions/runs/32423666352) concluiu com sucesso em `windows-latest`, incluindo validação debug/release, build e publicação. O único aviso foi a depreciação do Node.js 20 nas actions usadas.
+
+A [release v0.1.17](https://github.com/danilo-jesus-unifil/Compactador/releases/tag/v0.1.17) publicou o ZIP Windows com 342.409 bytes e o sidecar SHA-256 com 106 bytes. O checksum baixado retornou `OK`. O pacote contém `compactador-compressor.exe`, `compactador-launcher.exe`, `README.md`, `LICENSE` e `CHANGELOG.md`.
 
 ## Limitações conhecidas
 
 A janela TOCTOU entre verificar e publicar o diretório final de extração permanece como risco residual dependente de plataforma. A validação visual do Explorer, o Registro real, Windows 10/11, UNC, caminhos longos e seleções múltiplas extensas continuam pendentes de execução Windows. O CLI ainda não instala handler próprio de Ctrl+C, e `cargo-audit` não estava disponível no ambiente local.
 
-## Artefatos esperados
+## Artefatos publicados
 
-Após o workflow Windows concluir com sucesso, a release deve conter:
+A release contém:
 
-- `Compactador-v0.1.17-windows-x86_64.zip`
-- `Compactador-v0.1.17-windows-x86_64.zip.sha256`
+- [`Compactador-v0.1.17-windows-x86_64.zip`](https://github.com/danilo-jesus-unifil/Compactador/releases/download/v0.1.17/Compactador-v0.1.17-windows-x86_64.zip)
+- [`Compactador-v0.1.17-windows-x86_64.zip.sha256`](https://github.com/danilo-jesus-unifil/Compactador/releases/download/v0.1.17/Compactador-v0.1.17-windows-x86_64.zip.sha256)
 
-A publicação só deve ser considerada concluída após confirmar o status do workflow, o conteúdo do ZIP e o checksum SHA-256.
+O status do workflow, o conteúdo do ZIP e o checksum SHA-256 foram confirmados após a publicação.

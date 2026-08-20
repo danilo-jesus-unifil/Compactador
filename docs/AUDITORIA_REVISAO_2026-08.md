@@ -429,3 +429,9 @@ A função compartilhada `reject_hierarchical_conflicts` foi adicionada a `crate
 A segunda passagem revisou o diff, o container, staging, publicação, cancelamento, parsers, Registro, workflow e documentação. Não foram encontrados novos bugs confirmados no escopo portátil. Permanece como risco residual a janela entre a verificação de existência do destino final de extração e o `fs::rename` do diretório de staging; uma garantia sem sobrescrita concorrente exigiria primitivas específicas de cada plataforma e testes Windows/Unix. Também permanecem as limitações documentadas de Explorer, Registro real, Windows 10/11, UNC, caminhos longos, seleção extensa, Ctrl+C próprio e `cargo-audit` indisponível.
 
 Após a correção passaram `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, Clippy com `-D warnings`, build release, `cargo tree -d`, `cargo metadata --locked`, `git diff --check` e o E2E com `E2E_OK`. A suíte local passou a conter 41 testes executáveis: 18 do core, 12 do container, 5 do compressor e 6 da integração Windows em memória.
+
+### Resultado comprovado do v0.1.17
+
+O workflow [Windows release #32423666352](https://github.com/danilo-jesus-unifil/Compactador/actions/runs/32423666352) concluiu com `success` em `windows-latest`. A etapa `Validate`, o build release, o empacotamento e a publicação dos artefatos passaram. O único aviso foi a depreciação operacional do Node.js 20 nas actions usadas; não houve falha de teste ou de build.
+
+A release [`Compactador v0.1.17`](https://github.com/danilo-jesus-unifil/Compactador/releases/tag/v0.1.17) publicou `Compactador-v0.1.17-windows-x86_64.zip` com 342.409 bytes e `Compactador-v0.1.17-windows-x86_64.zip.sha256` com 106 bytes. A verificação baixada retornou `OK`. O ZIP contém `compactador-compressor.exe`, `compactador-launcher.exe`, `README.md`, `LICENSE` e `CHANGELOG.md`.

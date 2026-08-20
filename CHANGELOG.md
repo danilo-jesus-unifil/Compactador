@@ -10,7 +10,7 @@ A auditoria encontrou e corrigiu um conflito hierárquico em archives ZIP: um ar
 
 ### Validação
 
-Foram aprovados `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, Clippy estrito locked, `cargo build --workspace --release --locked`, `cargo tree -d`, `cargo metadata --locked`, `git diff --check` e o E2E dos binários release. A suíte local possui 41 testes: 18 do core, 12 do container, 5 do compressor e 6 da integração Windows em memória. O workflow Windows deve confirmar novamente os testes condicionais e os artefatos antes da publicação.
+Foram aprovados `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, Clippy estrito locked, `cargo build --workspace --release --locked`, `cargo tree -d`, `cargo metadata --locked`, `git diff --check` e o E2E dos binários release. A suíte local possui 41 testes: 18 do core, 12 do container, 5 do compressor e 6 da integração Windows em memória. O workflow [Windows release #32423666352](https://github.com/danilo-jesus-unifil/Compactador/actions/runs/32423666352) confirmou os testes condicionais, o build e a publicação. A release contém o ZIP Windows com 342.409 bytes e o sidecar SHA-256 com 106 bytes; a verificação baixada retornou `OK`. O pacote contém os dois executáveis, README, LICENSE e CHANGELOG. O único aviso foi a depreciação do Node.js 20 nas actions usadas.
 
 ### Limitações conhecidas
 
