@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.1.11] — 2026-08-20
+
+### Segurança, rollback e cancelamento
+
+A validação de caminhos ZIP passou a rejeitar caracteres de controle e proibidos pelo Windows, componentes terminados em ponto ou espaço e nomes reservados de dispositivos, inclusive com extensão. Foram ampliados os testes unitários e de integração de extração para cobrir esses casos.
+
+A instalação da integração com o Registry agora captura os valores anteriores e tenta restaurar em ordem reversa as entradas já alteradas quando uma escrita intermediária falha. O erro de rollback é preservado quando a restauração também falha, evitando ocultar a causa do estado parcial.
+
+O container passou a verificar cancelamento nas transições de validação e finalização, antes de publicar o arquivo. Foi adicionado teste que cancela no evento `Validating` e confirma que a saída não é publicada.
+
+A auditoria também corrigiu a contagem histórica das notas v0.1.10, que dizia 36 testes enquanto a suíte comprovada possuía 35 antes desta nova passagem.
+
+### Validação
+
+Foram aprovados `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, Clippy estrito locked, `cargo build --workspace --release --locked`, `cargo tree -d`, `cargo metadata --locked`, `git diff --check` e o E2E dos binários release. A suíte passou a ter 37 testes: 18 do core, 9 do container, 5 do compressor e 5 da integração Windows em memória. `cargo-audit` permanece indisponível no ambiente.
+
+### Limitações conhecidas
+
+A validação visual do Explorer, instalação e remoção reais do Registry, Windows 10/11, UNC, caminhos longos e seleções múltiplas extensas continuam dependentes de testes manuais Windows. O CLI não instala handler próprio de Ctrl+C; o cancelamento exposto pelo pipeline permanece cooperativo pela API. O rollback do Registry é de melhor esforço quando o próprio backend falha durante a restauração. O host Linux não possui target MSVC local, e a proteção contra TOCTOU do diretório final de extração não é absoluta em Unix.
+
 ## [0.1.10] — 2026-08-20
 
 ### Correções de análise e cancelamento
@@ -10,7 +30,7 @@ O pipeline operacional agora emite um evento de progresso na fase `Cancelled` ta
 
 ### Validação
 
-Foram aprovados `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, Clippy estrito locked, `cargo build --workspace --release --locked`, `cargo tree -d`, `cargo metadata --locked`, `git diff --check` e o E2E dos binários release. A suíte passou a ter 36 testes: 19 do core, 9 do container, 4 do compressor e 4 da integração Windows em memória. `cargo-audit` permanece indisponível no ambiente.
+Foram aprovados `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, Clippy estrito locked, `cargo build --workspace --release --locked`, `cargo tree -d`, `cargo metadata --locked`, `git diff --check` e o E2E dos binários release. A suíte passou a ter 35 testes: 18 do core, 9 do container, 4 do compressor e 4 da integração Windows em memória. `cargo-audit` permanece indisponível no ambiente.
 
 ### Limitações conhecidas
 

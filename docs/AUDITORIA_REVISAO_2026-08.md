@@ -243,7 +243,7 @@ Foi adicionado o teste `reports_total_file_count_when_analysis_is_sampled`, que 
 
 ### Validação local pós-correção
 
-Passaram `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`, `cargo build --workspace --release --locked`, `cargo tree -d`, `cargo metadata --locked`, `git diff --check` e o E2E dos binários release. A suíte passou a totalizar 36 testes: 19 do core, 9 do container, 4 do compressor e 4 da integração Windows em memória. O E2E confirmou ajuda, Unicode, espaços, arquivos e diretórios vazios, múltiplas entradas, cinco níveis, Store, extração, colisões, repetição, erros e launcher fora do Windows.
+Passaram `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`, `cargo build --workspace --release --locked`, `cargo tree -d`, `cargo metadata --locked`, `git diff --check` e o E2E dos binários release. A suíte passou a totalizar 35 testes: 18 do core, 9 do container, 4 do compressor e 4 da integração Windows em memória. O E2E confirmou ajuda, Unicode, espaços, arquivos e diretórios vazios, múltiplas entradas, cinco níveis, Store, extração, colisões, repetição, erros e launcher fora do Windows.
 
 ### Preparação do release 0.1.10
 
@@ -252,3 +252,35 @@ A versão do workspace e dos quatro pacotes locais foi incrementada de `0.1.9` p
 O workflow [Windows release](https://github.com/danilo-jesus-unifil/Compactador/actions/runs/32417679053) terminou com sucesso no job `Build Windows release` em `windows-latest`. A release publicou [`Compactador-v0.1.10-windows-x86_64.zip`](https://github.com/danilo-jesus-unifil/Compactador/releases/download/v0.1.10/Compactador-v0.1.10-windows-x86_64.zip), com 314.906 bytes, e [`Compactador-v0.1.10-windows-x86_64.zip.sha256`](https://github.com/danilo-jesus-unifil/Compactador/releases/download/v0.1.10/Compactador-v0.1.10-windows-x86_64.zip.sha256), com 106 bytes. O pacote baixado contém `compactador-launcher.exe` e `compactador-compressor.exe`; `sha256sum -c` retornou `OK`.
 
 As limitações remanescentes são a validação visual do Explorer, Registry real, Windows 10/11, UNC, caminhos longos e seleções múltiplas extensas em Windows; a ausência de handler próprio de Ctrl+C no CLI; a proteção TOCTOU não absoluta do diretório final de extração em Unix; a indisponibilidade de `cargo-audit`; e o caráter reservado, não ativo, de `CompressionRequest`, `OperationStatus` e `parallel`.
+
+## Nova passagem após v0.1.10 — compatibilidade Windows, rollback e cancelamento entre fases
+
+A nova auditoria foi iniciada sobre `main` limpo, com a release `v0.1.10` publicada e seus artefatos Windows verificados. O prompt completo e `docs/BOAS_PRATICAS_GIT_E_PROJETO.md` foram lidos antes da inspeção. Foram reavaliados requisitos funcionais, CLI/UX, arquitetura, segurança, desempenho, compatibilidade Windows, modularização, dependências, documentação, Registry e regressões.
+
+### Achados confirmados
+
+A validação de caminhos ZIP rejeitava traversal, caminhos absolutos, barras invertidas, NUL e nomes não Unicode, mas ainda aceitava nomes incompatíveis com o filesystem Windows, como `CON.txt`, `NUL`, `arquivo?.txt` e componentes terminados em ponto ou espaço. A aceitação poderia fazer uma extração segura no sentido lexical falhar ou colidir no Windows.
+
+A instalação do Registry escrevia todas as entradas sequencialmente, mas uma falha intermediária retornava o erro sem restaurar valores já alterados. Isso podia deixar a integração em estado parcial após uma falha de permissão, I/O ou backend.
+
+O pipeline já cancelava durante o streaming e antes das fases posteriores, mas não verificava o token nas transições de validação e finalização. Um cancelamento observado pelo reporter no início da validação podia, portanto, permitir trabalho adicional ou publicação indevida.
+
+A revisão documental também encontrou uma inconsistência histórica: as notas da v0.1.10 informavam 36 testes, enquanto a suíte real antes desta passagem possuía 35 — 18 do core, 9 do container, 4 do compressor e 4 da integração Windows em memória. As notas, o changelog e o registro de auditoria foram corrigidos para refletir o estado comprovado.
+
+### Correções implementadas
+
+A validação de componentes relativos passou a rejeitar caracteres de controle e caracteres proibidos pelo Windows, pontos ou espaços finais e nomes reservados de dispositivos (`CON`, `PRN`, `AUX`, `NUL`, `COM1`–`COM9` e `LPT1`–`LPT9`), inclusive quando recebem extensão. O teste unitário e o teste de integração de extração foram ampliados com esses casos.
+
+A instalação do Registry agora captura os valores anteriores de todas as entradas, restaura em ordem reversa as entradas já processadas quando uma escrita falha e retorna o erro de rollback caso a restauração também falhe. A estratégia é de rollback de melhor esforço, preservando o diagnóstico do erro e evitando deixar alterações conhecidas quando o backend permite a restauração.
+
+O container verifica cancelamento antes da validação, depois do callback de início da validação, após a validação, depois do callback de finalização e antes da publicação. O compressor ganhou um teste que cancela pelo evento `Validating` e confirma que a saída não é publicada.
+
+### Validação pós-correção
+
+Passaram `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`, `cargo build --workspace --release --locked`, `cargo tree -d`, `cargo metadata --locked`, `git diff --check` e o E2E dos binários release. A suíte passou a totalizar 37 testes: 18 do core, 9 do container, 5 do compressor e 5 da integração Windows em memória. O E2E confirmou novamente ajuda, Unicode, espaços, arquivos e diretórios vazios, múltiplas entradas, cinco níveis, Store, extração, colisões, repetição, erros e launcher fora do Windows. `cargo-audit` permanece indisponível.
+
+### Preparação do release 0.1.11
+
+A versão do workspace e dos quatro pacotes locais foi incrementada de `0.1.10` para `0.1.11`; `Cargo.lock`, `CHANGELOG.md`, as notas públicas e esta auditoria foram atualizados. A validação Windows, a tag anotada e os artefatos só devem ser registrados após a conclusão do workflow em `windows-latest` e a verificação local do checksum.
+
+Permanecem como limitações a validação visual do Explorer, Registry real, Windows 10/11, UNC, caminhos longos e seleções múltiplas extensas em Windows; a ausência de handler próprio de Ctrl+C no CLI; a proteção TOCTOU não absoluta do diretório final de extração em Unix; a indisponibilidade de `cargo-audit`; e o caráter reservado, não ativo, de `CompressionRequest`, `OperationStatus` e `parallel`.
