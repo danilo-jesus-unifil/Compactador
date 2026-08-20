@@ -218,3 +218,35 @@ Após a correção documental, passaram `cargo fmt --all -- --check`, `cargo che
 A correção documental foi preparada com bump de `0.1.8` para `0.1.9`, changelog, notas públicas e lockfile atualizados. A preparação do release foi commitada em `e29e6d7`, com a mensagem `chore: prepare release v0.1.9`; a tag anotada `v0.1.9` aponta para `e29e6d7` e está publicada em https://github.com/danilo-jesus-unifil/Compactador/releases/tag/v0.1.9.
 
 O workflow [Windows release](https://github.com/danilo-jesus-unifil/Compactador/actions/runs/32416149877) terminou com sucesso no job `Build Windows release`. A release publicou [`Compactador-v0.1.9-windows-x86_64.zip`](https://github.com/danilo-jesus-unifil/Compactador/releases/download/v0.1.9/Compactador-v0.1.9-windows-x86_64.zip) e [`Compactador-v0.1.9-windows-x86_64.zip.sha256`](https://github.com/danilo-jesus-unifil/Compactador/releases/download/v0.1.9/Compactador-v0.1.9-windows-x86_64.zip.sha256). Os artefatos foram baixados; o checksum retornou `OK`, e o ZIP contém `compactador-launcher.exe` e `compactador-compressor.exe`. Esta atualização registra o resultado pós-CI e será incluída no commit documental desta passagem.
+
+## Nova passagem após v0.1.9 — análise amostrada e cancelamento operacional
+
+A nova auditoria foi iniciada sobre o branch `main` sincronizado com `origin/main`, após a leitura integral do prompt de revisão e do documento `docs/BOAS_PRATICAS_GIT_E_PROJETO.md`. Foram reavaliados os requisitos funcionais, a interface CLI, a integração Explorer→CLI, a arquitetura dos quatro crates, segurança de caminhos e extração, desempenho de streaming e amostragem, compatibilidade Windows, tratamento de erros, dependências, documentação e regressões.
+
+### Achados confirmados
+
+Foi reproduzida uma inconsistência funcional na análise de diretórios grandes. O acumulador interrompia a classificação após 4.096 arquivos, mas reutilizava a mesma contagem para o campo público `SelectionAnalysis.files`. Assim, o tamanho total incluía todos os arquivos, enquanto a quantidade reportada representava somente a amostra. Essa divergência podia fornecer ao seletor e aos consumidores da análise um perfil de seleção incompleto.
+
+Também foi confirmado que `OperationPhase::Cancelled` existia no modelo público e era reconhecido pelo formatador do CLI, mas o pipeline operacional não emitia esse evento: cancelamentos eram apenas retornados como `CoreError::Cancelled`. Isso deixava o contrato de progresso menos observável para consumidores de `ProgressReporter`, especialmente em integrações futuras.
+
+A revisão não encontrou placeholders operacionais, perda de Unicode, processamento integral de arquivos grandes, remoção indevida de valores externos do Registry, paralelismo anunciado sem implementação, dependências duplicadas ou divergências adicionais relevantes entre documentação e código. `cargo-audit` não está disponível neste ambiente.
+
+### Correções implementadas
+
+O acumulador passou a manter `files` como contagem total descoberta e `analyzed_files` como contador interno da amostra. O limite de 4.096 arquivos continua controlando somente o trabalho de classificação; o campo `sampled` e a política conservadora de `already_compressed` permanecem preservados.
+
+O pipeline operacional passou a emitir `OperationPhase::Cancelled` antes da próxima fase quando o token já está cancelado e quando o container retorna cancelamento durante o streaming. O evento inclui o progresso conhecido por meio de um contador atômico, e a função continua retornando `CoreError::Cancelled`, sem publicar temporários parciais.
+
+### Cobertura adicionada
+
+Foi adicionado o teste `reports_total_file_count_when_analysis_is_sampled`, que cria 4.097 arquivos, confirma a contagem e o tamanho totais, verifica `sampled` e garante que a análise parcial não anuncie todo o conteúdo como comprimido. Os testes de cancelamento pré-início e durante streaming agora verificam explicitamente que o último evento emitido é `OperationPhase::Cancelled`.
+
+### Validação local pós-correção
+
+Passaram `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`, `cargo build --workspace --release --locked`, `cargo tree -d`, `cargo metadata --locked`, `git diff --check` e o E2E dos binários release. A suíte passou a totalizar 36 testes: 19 do core, 9 do container, 4 do compressor e 4 da integração Windows em memória. O E2E confirmou ajuda, Unicode, espaços, arquivos e diretórios vazios, múltiplas entradas, cinco níveis, Store, extração, colisões, repetição, erros e launcher fora do Windows.
+
+### Preparação do release 0.1.10
+
+A versão do workspace e dos quatro pacotes locais foi incrementada de `0.1.9` para `0.1.10`; `Cargo.lock`, `CHANGELOG.md` e `docs/RELEASE_NOTES_0.1.10.md` foram atualizados. O working tree deve permanecer limpo antes da criação da tag anotada. O release Windows e os links de artefatos somente serão registrados nas notas após o workflow em `windows-latest` terminar e o checksum ser verificado localmente.
+
+As limitações remanescentes são a validação visual do Explorer, Registry real, Windows 10/11, UNC, caminhos longos e seleções múltiplas extensas em Windows; a ausência de handler próprio de Ctrl+C no CLI; a proteção TOCTOU não absoluta do diretório final de extração em Unix; a indisponibilidade de `cargo-audit`; e o caráter reservado, não ativo, de `CompressionRequest`, `OperationStatus` e `parallel`.

@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.10] — 2026-08-20
+
+### Correções de análise e cancelamento
+
+A análise de diretórios grandes agora preserva a contagem total de arquivos descobertos mesmo quando a classificação utiliza a amostra limitada de 4.096 arquivos. O tamanho total continua sendo acumulado, o campo `sampled` permanece explícito e a heurística não anuncia que todo o conteúdo está comprimido quando a análise foi parcial.
+
+O pipeline operacional agora emite um evento de progresso na fase `Cancelled` tanto para cancelamentos antes do início da próxima etapa quanto para cancelamentos ocorridos durante o streaming. O evento preserva o progresso conhecido e continua acompanhado do erro `Cancelled`; temporários parciais não são publicados.
+
+### Validação
+
+Foram aprovados `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, Clippy estrito locked, `cargo build --workspace --release --locked`, `cargo tree -d`, `cargo metadata --locked`, `git diff --check` e o E2E dos binários release. A suíte passou a ter 36 testes: 19 do core, 9 do container, 4 do compressor e 4 da integração Windows em memória. `cargo-audit` permanece indisponível no ambiente.
+
+### Limitações conhecidas
+
+A validação visual do Explorer, instalação e remoção reais do Registry, Windows 10/11, UNC, caminhos longos e seleções múltiplas extensas continuam dependentes de testes manuais Windows. O CLI ainda não instala handler próprio de Ctrl+C; o cancelamento exposto pelo pipeline permanece cooperativo pela API. O host Linux não possui target MSVC local, e a proteção contra TOCTOU do diretório final de extração não é absoluta em Unix.
+
 ## [0.1.9] — 2026-08-20
 
 ### Consistência da documentação de extração
