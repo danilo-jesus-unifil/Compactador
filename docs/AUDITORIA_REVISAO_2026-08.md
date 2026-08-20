@@ -100,4 +100,4 @@ A integração efetiva com o Registro e a aparência do menu do Explorer não fo
 
 ### Decisão de release
 
-Com os gates locais aprovados e a documentação atualizada, a versão compartilhada do workspace foi incrementada para `0.1.5`. A publicação dos executáveis Windows continua condicionada ao workflow `windows-latest`, acionado pela tag anotada `v0.1.5`; a aprovação desse workflow será registrada após sua conclusão.
+Com os gates locais aprovados e a documentação atualizada, a versão compartilhada do workspace foi incrementada para `0.1.5`. A tag anotada `v0.1.5` acionou o workflow `windows-latest`, que concluiu com sucesso as etapas de validação, build, empacotamento e publicação. A release contém `Compactador-v0.1.5-windows-x86_64.zip` e `Compactador-v0.1.5-windows-x86_64.zip.sha256`. O workflow emitiu apenas o aviso operacional de depreciação do Node.js 20 nas actions usadas, sem falha de job.

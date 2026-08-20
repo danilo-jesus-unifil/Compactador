@@ -21,7 +21,7 @@ Foram aprovados `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo 
 
 ## Artefatos
 
-O workflow de release do GitHub Actions será acionado pela tag `v0.1.5`, validará o workspace em `windows-latest` e publicará o pacote `Compactador-v0.1.5-windows-x86_64.zip` acompanhado de seu arquivo SHA-256. A conclusão do workflow Windows é a evidência autoritativa para os executáveis `.exe` deste release; a validação Linux não substitui a execução do Registro e do Explorer no Windows.
+O workflow de release do GitHub Actions foi concluído com sucesso em `windows-latest` para a tag `v0.1.5`. Foram publicados `Compactador-v0.1.5-windows-x86_64.zip` e o respectivo arquivo SHA-256. A conclusão do workflow Windows é a evidência autoritativa para os executáveis `.exe` deste release; a validação Linux não substitui a execução do Registro e do Explorer no Windows.
 
 ## Limitações conhecidas
 
