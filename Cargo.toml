@@ -1,0 +1,18 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/core",
+    "crates/windows-integration",
+    "crates/launcher",
+    "crates/compressor",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/danilo-jesus-unifil/Compactador"
+
+[workspace.dependencies]
+compactador-core = { path = "crates/core" }
+compactador-windows-integration = { path = "crates/windows-integration" }

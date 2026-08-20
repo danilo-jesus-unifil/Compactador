@@ -1,0 +1,13 @@
+[package]
+name = "compactador-compressor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "compactador-compressor"
+path = "src/main.rs"
+
+[dependencies]
+compactador-core.workspace = true
+compactador-windows-integration.workspace = true

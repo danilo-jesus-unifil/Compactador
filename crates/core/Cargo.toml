@@ -1,0 +1,9 @@
+[package]
+name = "compactador-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "compactador_core"
+path = "src/lib.rs"
