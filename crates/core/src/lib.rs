@@ -1,5 +1,6 @@
 pub mod analysis;
 pub mod compression;
+pub mod container;
 pub mod error;
 pub mod filesystem;
 pub mod models;

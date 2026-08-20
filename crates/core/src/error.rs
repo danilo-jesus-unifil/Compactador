@@ -6,6 +6,7 @@ pub enum CoreError {
     InvalidInput(String),
     InvalidConfiguration(String),
     Unsupported(String),
+    Cancelled,
     Io(io::Error),
 }
 
@@ -17,6 +18,7 @@ impl fmt::Display for CoreError {
                 write!(formatter, "configuração inválida: {message}")
             }
             Self::Unsupported(message) => write!(formatter, "operação não suportada: {message}"),
+            Self::Cancelled => formatter.write_str("operação cancelada"),
             Self::Io(error) => write!(formatter, "erro de I/O: {error}"),
         }
     }

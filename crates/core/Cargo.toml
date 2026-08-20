@@ -7,3 +7,8 @@ license.workspace = true
 [lib]
 name = "compactador_core"
 path = "src/lib.rs"
+
+[dependencies]
+crc32fast = "1.4"
+flate2 = "1.0"
+zip = { version = "0.6.6", default-features = false, features = ["deflate"] }

@@ -1,0 +1,260 @@
+use compactador_core::analysis::analyze_selection;
+use compactador_core::container::{compress_inputs_with_cancel, ArchiveSummary};
+use compactador_core::error::{CoreError, CoreResult};
+use compactador_core::models::{OperationId, OperationPhase, ResourceProfile};
+use compactador_core::selection::{
+    HeuristicStrategySelector, InputProfile, SelectionRequest, StrategySelector,
+};
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProgressEvent {
+    pub operation_id: OperationId,
+    pub phase: OperationPhase,
+    pub completed_bytes: u64,
+    pub total_bytes: u64,
+    pub message: String,
+}
+
+pub trait ProgressReporter: Send + Sync {
+    fn report(&self, event: ProgressEvent);
+}
+
+#[derive(Debug, Default)]
+pub struct NullReporter;
+
+impl ProgressReporter for NullReporter {
+    fn report(&self, _event: ProgressEvent) {}
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct CancellationToken {
+    cancelled: Arc<AtomicBool>,
+}
+
+impl CancellationToken {
+    /// Hook usado por uma UI, handler de sinal ou integração futura para cancelar cooperativamente.
+    #[allow(dead_code)]
+    pub fn cancel(&self) {
+        self.cancelled.store(true, Ordering::Release);
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        self.cancelled.load(Ordering::Acquire)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct OperationResult {
+    pub operation_id: OperationId,
+    pub output: PathBuf,
+    pub summary: ArchiveSummary,
+    pub strategy: compactador_core::models::CompressionStrategy,
+}
+
+pub fn run_operation(
+    request: &SelectionRequest,
+    output: PathBuf,
+    resources: ResourceProfile,
+    token: &CancellationToken,
+    reporter: &dyn ProgressReporter,
+) -> CoreResult<OperationResult> {
+    let operation_id = OperationId::new();
+    let total_bytes = request
+        .inputs
+        .iter()
+        .map(|input| input.size_bytes.unwrap_or(0))
+        .sum();
+    report(
+        reporter,
+        operation_id,
+        OperationPhase::Analyzing,
+        0,
+        total_bytes,
+        "analisando seleção",
+    );
+    let analysis = analyze_selection(&request.inputs).map_err(CoreError::from)?;
+    ensure_not_cancelled(token)?;
+    let profile = InputProfile {
+        total_size_bytes: analysis.total_size_bytes,
+        file_count: analysis.files,
+        has_compressed_content: analysis.already_compressed,
+        dominant_category: analysis.dominant_category,
+    };
+    let strategy = HeuristicStrategySelector.select(&profile, request.level, &resources)?;
+    report(
+        reporter,
+        operation_id,
+        OperationPhase::Preparing,
+        0,
+        total_bytes,
+        format!(
+            "estratégia: {}; {}",
+            strategy.algorithm_id, strategy.rationale
+        ),
+    );
+    ensure_not_cancelled(token)?;
+    report(
+        reporter,
+        operation_id,
+        OperationPhase::Compressing,
+        0,
+        total_bytes,
+        "compactando em streaming",
+    );
+    let summary = compress_inputs_with_cancel(
+        request
+            .inputs
+            .iter()
+            .map(|input| input.path.clone())
+            .collect::<Vec<_>>(),
+        &output,
+        request.level,
+        &|| token.is_cancelled(),
+    )?;
+    ensure_not_cancelled(token)?;
+    report(
+        reporter,
+        operation_id,
+        OperationPhase::Finalizing,
+        total_bytes,
+        total_bytes,
+        "validando e finalizando arquivo",
+    );
+    report(
+        reporter,
+        operation_id,
+        OperationPhase::Completed,
+        total_bytes,
+        total_bytes,
+        "compactação concluída",
+    );
+    Ok(OperationResult {
+        operation_id,
+        output,
+        summary,
+        strategy,
+    })
+}
+
+fn ensure_not_cancelled(token: &CancellationToken) -> CoreResult<()> {
+    if token.is_cancelled() {
+        Err(CoreError::Cancelled)
+    } else {
+        Ok(())
+    }
+}
+
+fn report(
+    reporter: &dyn ProgressReporter,
+    operation_id: OperationId,
+    phase: OperationPhase,
+    completed_bytes: u64,
+    total_bytes: u64,
+    message: impl Into<String>,
+) {
+    reporter.report(ProgressEvent {
+        operation_id,
+        phase,
+        completed_bytes,
+        total_bytes,
+        message: message.into(),
+    });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use compactador_core::models::CompressionLevel;
+    use compactador_core::selection::SelectionRequest;
+    use std::ffi::OsString;
+    use std::fs;
+    use std::sync::Mutex;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[derive(Default)]
+    struct RecordingReporter(Mutex<Vec<ProgressEvent>>);
+
+    impl ProgressReporter for RecordingReporter {
+        fn report(&self, event: ProgressEvent) {
+            self.0.lock().expect("lock").push(event);
+        }
+    }
+
+    #[test]
+    fn reports_real_phases_and_creates_output() {
+        let root = std::env::temp_dir().join(format!(
+            "compactador-operation-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).expect("create root");
+        let input = root.join("entrada.txt");
+        let output = root.join("saida.zip");
+        fs::write(&input, b"dados repetidos dados repetidos").expect("write input");
+        let request = SelectionRequest::parse([
+            OsString::from("--compress"),
+            OsString::from("normal"),
+            OsString::from("--"),
+            input.as_os_str().to_os_string(),
+        ])
+        .expect("request");
+        let reporter = RecordingReporter::default();
+        let result = run_operation(
+            &request,
+            output.clone(),
+            ResourceProfile::default(),
+            &CancellationToken::default(),
+            &reporter,
+        )
+        .expect("operation");
+        assert_eq!(result.strategy.level, CompressionLevel::Normal);
+        assert!(output.exists());
+        let phases = reporter
+            .0
+            .lock()
+            .expect("lock")
+            .iter()
+            .map(|event| event.phase)
+            .collect::<Vec<_>>();
+        assert!(phases.contains(&OperationPhase::Analyzing));
+        assert!(phases.contains(&OperationPhase::Completed));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn cancellation_is_reported_before_work_starts() {
+        let root = std::env::temp_dir().join(format!(
+            "compactador-cancel-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).expect("create root");
+        let input = root.join("entrada.txt");
+        fs::write(&input, b"dados").expect("write input");
+        let request = SelectionRequest::parse([
+            OsString::from("--compress"),
+            OsString::from("normal"),
+            OsString::from("--"),
+            input.as_os_str().to_os_string(),
+        ])
+        .expect("request");
+        let token = CancellationToken::default();
+        token.cancel();
+        let result = run_operation(
+            &request,
+            root.join("saida.zip"),
+            ResourceProfile::default(),
+            &token,
+            &NullReporter,
+        );
+        assert!(matches!(result, Err(CoreError::Cancelled)));
+        let _ = fs::remove_dir_all(root);
+    }
+}
