@@ -198,3 +198,21 @@ Após a correção, a segunda revisão reexaminou análise, container, seguranç
 A correção de código foi separada no commit `442e08a`, com a mensagem `fix(core): reject invalid analysis selections`. A preparação do release foi commitada em `d94b156`, com a mensagem `chore: prepare release v0.1.8`; a versão do workspace foi incrementada de `0.1.7` para `0.1.8`, o lockfile foi atualizado, e changelog e notas públicas foram revisados. A tag anotada `v0.1.8` aponta para `d94b156` e está publicada em https://github.com/danilo-jesus-unifil/Compactador/releases/tag/v0.1.8.
 
 O workflow [Windows release](https://github.com/danilo-jesus-unifil/Compactador/actions/runs/32415522642) terminou com sucesso no job `Build Windows release`. A release publicou [`Compactador-v0.1.8-windows-x86_64.zip`](https://github.com/danilo-jesus-unifil/Compactador/releases/download/v0.1.8/Compactador-v0.1.8-windows-x86_64.zip) e [`Compactador-v0.1.8-windows-x86_64.zip.sha256`](https://github.com/danilo-jesus-unifil/Compactador/releases/download/v0.1.8/Compactador-v0.1.8-windows-x86_64.zip.sha256). Os artefatos foram baixados; o checksum retornou `OK`, e o ZIP contém `compactador-launcher.exe` e `compactador-compressor.exe`. Esta atualização registra o resultado pós-CI e será comitada separadamente para manter o branch principal sincronizado.
+
+## Nova passagem após v0.1.8 — consistência da publicação de arquivos extraídos
+
+A auditoria repetida foi iniciada sobre `main` limpo, com `v0.1.8` publicada e os artefatos Windows disponíveis. O prompt completo e as boas práticas internas foram lidos antes da inspeção. Foram reavaliados requisitos funcionais, CLI/UX, arquitetura, segurança, desempenho, compatibilidade, modularização, dependências, documentação e regressões.
+
+### Achado confirmado
+
+A implementação e o README já descreviam publicação sem sobrescrita por hard link, mas `docs/DECISAO_CONTAINER_ZIP.md` ainda dizia que cada arquivo extraído era “renomeado”. Essa diferença era documentalmente relevante porque poderia sugerir uma política de substituição diferente da efetivamente implementada. O texto foi corrigido para descrever hard link no mesmo diretório, sem sobrescrita, após escrita, sincronização e validação por CRC.
+
+Nenhum comportamento funcional foi alterado. A inspeção não encontrou novo bug funcional, placeholder operacional, perda Unicode, leitura integral de arquivos grandes, uso de `delete_subkey_all`, paralelismo anunciado indevidamente ou divergência adicional entre contratos e implementação.
+
+### Segunda auditoria e gates
+
+Após a correção documental, passaram `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`, `cargo build --workspace --release --locked`, `cargo tree -d`, `cargo metadata --locked`, `git diff --check` e o E2E. A suíte permanece com 34 testes: 17 do core, 9 do container, 4 do compressor e 4 da integração Windows em memória. `cargo-audit` permanece indisponível.
+
+### Preparação do release 0.1.9
+
+A correção documental será preparada com bump de `0.1.8` para `0.1.9`, changelog, notas públicas e lockfile atualizados. A tag anotada e o release somente serão publicados após o working tree limpo e a revisão final do diff.

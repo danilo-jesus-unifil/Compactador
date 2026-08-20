@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.9] — 2026-08-20
+
+### Consistência da documentação de extração
+
+A decisão arquitetural do container foi alinhada ao código real: arquivos extraídos são publicados por hard link no mesmo diretório, sem sobrescrita, depois da escrita, sincronização e validação por CRC. A redação antiga dizia `rename`, o que poderia sugerir uma política de substituição diferente da implementada.
+
+Nenhum comportamento funcional foi alterado nesta passagem. A correção torna explícita a política de publicação segura já usada pelo código.
+
+### Validação
+
+A auditoria repetida aprovou `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, Clippy estrito locked, build release locked, `cargo tree -d`, `cargo metadata --locked`, `git diff --check` e E2E. A suíte possui 34 testes: 17 do core, 9 do container, 4 do compressor e 4 da integração Windows em memória. `cargo-audit` não estava disponível.
+
+### Limitações conhecidas
+
+A validação visual do Explorer, instalação e remoção reais do Registry, Windows 10/11, UNC, caminhos longos e seleções múltiplas extensas continuam dependentes de testes manuais Windows. O CLI ainda não instala handler próprio de Ctrl+C; o cancelamento validado é cooperativo pela API. O host Linux não possui target MSVC local.
+
 ## [0.1.8] — 2026-08-20
 
 ### Correções de análise e robustez

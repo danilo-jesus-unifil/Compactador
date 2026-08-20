@@ -20,7 +20,7 @@ A operação valida a seleção, analisa amostras pequenas, escolhe uma estraté
 
 ## Segurança de extração
 
-A extração rejeita nomes que não possam ser convertidos em caminhos relativos seguros, incluindo caminhos absolutos, componentes pai e separadores perigosos. O limite de entradas e o tamanho expandido máximo são verificados antes e durante a leitura. Cada arquivo regular é escrito em temporário no mesmo diretório de destino, validado por CRC e renomeado apenas depois da escrita completa.
+A extração rejeita nomes que não possam ser convertidos em caminhos relativos seguros, incluindo caminhos absolutos, componentes pai e separadores perigosos. O limite de entradas e o tamanho expandido máximo são verificados antes e durante a leitura. Cada arquivo regular é escrito em temporário no mesmo diretório de destino, validado por CRC e publicado por hard link sem sobrescrita apenas depois da escrita completa.
 
 A política atual não segue links simbólicos ao compactar diretórios. Isso reduz ambiguidades de escopo e evita que uma seleção atravesse inesperadamente para fora da árvore fornecida. Permissões, timestamps e atributos avançados não fazem parte do contrato mínimo desta versão e não devem ser anunciados como preservados.
 
