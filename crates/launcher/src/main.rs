@@ -1,4 +1,5 @@
 use compactador_core::models::InstallationState;
+#[cfg(not(windows))]
 use compactador_windows_integration::not_supported_report;
 
 use std::path::PathBuf;
@@ -27,7 +28,7 @@ fn execute(
 ) -> Result<compactador_windows_integration::registry::InstallationReport, String> {
     use compactador_windows_integration::registry::WindowsRegistry;
     let manager = compactador_windows_integration::manager::InstallationManager::new(
-        WindowsRegistry::default(),
+        WindowsRegistry,
         compactador_windows_integration::expected_definition(executable),
     );
     match command {

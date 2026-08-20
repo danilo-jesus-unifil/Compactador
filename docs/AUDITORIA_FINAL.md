@@ -1,8 +1,8 @@
-# Auditoria final — versão 0.1.2
+# Auditoria final — versão 0.1.3
 
 ## Resultado
 
-A auditoria funcional e arquitetural disponível no ambiente foi concluída antes da publicação da versão corrigida. As primeiras execuções do workflow Windows encontraram problemas específicos de plataforma e de versões mais novas do Clippy; todos foram corrigidos antes da publicação da v0.1.2. O working tree estava limpo, o workspace foi compilado em modo de desenvolvimento e release, e as verificações Rust passaram sem warnings do Clippy configurado como erro.
+A auditoria funcional e arquitetural disponível no ambiente foi concluída antes da publicação da versão corrigida. As primeiras execuções do workflow Windows encontraram problemas específicos de plataforma e de versões mais novas do Clippy; todos foram corrigidos antes da publicação da v0.1.3. O working tree estava limpo, o workspace foi compilado em modo de desenvolvimento e release, e as verificações Rust passaram sem warnings do Clippy configurado como erro.
 
 | Verificação | Resultado | Observação |
 | --- | --- | --- |
@@ -15,7 +15,7 @@ A auditoria funcional e arquitetural disponível no ambiente foi concluída ante
 | `git diff --check` | Aprovado | Nenhum erro de whitespace |
 | `git status --porcelain` | Aprovado | Working tree limpo antes da publicação |
 | `cargo audit` | Não executado | A ferramenta não está instalada no ambiente |
-| Workflow Windows v0.1.2 | Será executado após a tag | Responsável por confirmar compilação MSVC e anexar os executáveis Windows |
+| Workflow Windows v0.1.3 | Será executado após a tag | Responsável por confirmar compilação MSVC e anexar os executáveis Windows |
 | Windows 10/11 real | Pendente | O ambiente disponível é Linux |
 
 ## Auditoria funcional

@@ -22,9 +22,11 @@ pub trait ProgressReporter: Send + Sync {
     fn report(&self, event: ProgressEvent);
 }
 
+#[cfg(test)]
 #[derive(Debug, Default)]
 pub struct NullReporter;
 
+#[cfg(test)]
 impl ProgressReporter for NullReporter {
     fn report(&self, _event: ProgressEvent) {}
 }

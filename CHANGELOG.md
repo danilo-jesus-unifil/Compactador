@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.3] — 2026-08-20
+
+### Correções finais de CI Windows
+
+O launcher agora mantém importações específicas de plataforma sob `cfg`, instancia corretamente o backend de registro unitário e o reporter nulo fica restrito aos testes. Esses ajustes permitem que o workflow Windows complete a validação com as regras Clippy atuais.
+
 ## [0.1.2] — 2026-08-20
 
 ### Correções finais
