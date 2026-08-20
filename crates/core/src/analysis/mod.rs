@@ -114,6 +114,12 @@ pub fn analyze_file(path: impl AsRef<Path>) -> io::Result<FileAnalysis> {
 }
 
 pub fn analyze_selection(inputs: &[InputEntry]) -> io::Result<SelectionAnalysis> {
+    if inputs.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "a seleção não pode estar vazia",
+        ));
+    }
     let mut accumulator = AnalysisAccumulator {
         already_compressed: true,
         ..AnalysisAccumulator::default()
@@ -145,8 +151,20 @@ struct AnalysisAccumulator {
 impl AnalysisAccumulator {
     fn add_file(&mut self, path: &Path) -> io::Result<()> {
         let metadata = std::fs::symlink_metadata(path)?;
+        if is_link_or_reparse_point(&metadata) {
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                format!(
+                    "links simbólicos ou reparse points não são analisados: {}",
+                    path.display()
+                ),
+            ));
+        }
         if !metadata.is_file() {
-            return Ok(());
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("não é arquivo regular: {}", path.display()),
+            ));
         }
         self.total_size_bytes = self.total_size_bytes.saturating_add(metadata.len());
         if self.files as usize >= MAX_DIRECTORY_ANALYSIS_FILES {
@@ -337,6 +355,28 @@ mod tests {
         assert!(profile.sampled);
         assert!(!profile.already_compressed);
         assert_eq!(profile.estimated_compressibility_percent, 5);
+    }
+
+    #[test]
+    fn rejects_empty_selection_analysis() {
+        let error = analyze_selection(&[]).expect_err("empty selection must fail");
+        assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
+    }
+
+    #[test]
+    fn rejects_file_entry_that_is_not_a_regular_file() {
+        let root = std::env::temp_dir().join(format!(
+            "compactador-analysis-mismatched-kind-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).expect("create root");
+        let input = InputEntry::new(root.clone(), InputKind::File, None);
+        let error = analyze_selection(&[input]).expect_err("directory as file must fail");
+        assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]
