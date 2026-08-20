@@ -237,6 +237,30 @@ fn extraction_rejects_traversal_and_existing_destination() {
 }
 
 #[test]
+fn rejects_file_path_that_is_an_ancestor_of_another_entry() {
+    let root = temp_dir();
+    fs::create_dir_all(&root).expect("create root");
+    let archive = root.join("hierarchy-conflict.zip");
+    let file = File::create(&archive).expect("create archive");
+    let mut writer = ZipWriter::new(file);
+    writer
+        .start_file("Folder", FileOptions::default())
+        .expect("start file ancestor");
+    writer.write_all(b"file").expect("write file ancestor");
+    writer
+        .start_file("folder/child.txt", FileOptions::default())
+        .expect("start child");
+    writer.write_all(b"child").expect("write child");
+    writer.finish().expect("finish archive");
+
+    assert!(validate_archive(&archive).is_err());
+    let destination = root.join("destination");
+    assert!(extract_archive(&archive, &destination).is_err());
+    assert!(!destination.exists());
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn extraction_rejects_duplicate_directory_entries() {
     let root = temp_dir();
     fs::create_dir_all(&root).expect("create root");

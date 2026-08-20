@@ -347,6 +347,7 @@ pub fn validate_archive(path: impl AsRef<Path>) -> CoreResult<ArchiveSummary> {
             data_offset: entry.data_start(),
         });
     }
+    reject_hierarchical_conflicts(&entries)?;
     Ok(ArchiveSummary {
         entries,
         total_original_bytes,
@@ -448,6 +449,7 @@ pub fn extract_archive(
                 data_offset,
             });
         }
+        reject_hierarchical_conflicts(&entries)?;
         fs::rename(&staging, destination)?;
         Ok(ArchiveSummary {
             entries,
@@ -548,6 +550,33 @@ fn ensure_expansion_ratio(
         return Err(CoreError::InvalidInput(format!(
             "razão de expansão excede o limite de segurança: {entry_name}"
         )));
+    }
+    Ok(())
+}
+
+fn reject_hierarchical_conflicts(entries: &[ArchiveEntry]) -> CoreResult<()> {
+    let file_names = entries
+        .iter()
+        .filter(|entry| !entry.is_directory)
+        .map(|entry| normalized_name(&entry.path).map(|name| archive_name_key(&name)))
+        .collect::<CoreResult<HashSet<_>>>()?;
+
+    for entry in entries {
+        let normalized = normalized_name(&entry.path)?;
+        let components = normalized.split('/').collect::<Vec<_>>();
+        let mut ancestor = String::new();
+        for component in components.iter().take(components.len().saturating_sub(1)) {
+            if !ancestor.is_empty() {
+                ancestor.push('/');
+            }
+            ancestor.push_str(component);
+            if file_names.contains(&archive_name_key(&ancestor)) {
+                return Err(CoreError::InvalidInput(format!(
+                    "conflito hierárquico no container: arquivo pai e descendente incompatíveis: {}",
+                    entry.path.display()
+                )));
+            }
+        }
     }
     Ok(())
 }
