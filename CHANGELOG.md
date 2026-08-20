@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.1] — 2026-08-20
+
+### Correções
+
+O workflow de release do Windows agora compila o backend `winreg` com o tipo `std::io::Error` efetivamente exposto pela crate, e o cálculo da análise satisfaz as verificações Clippy mais novas usadas por `windows-latest`. Esta versão de correção resolve os problemas específicos encontrados pela primeira validação de CI.
+
+### Validação
+
+A quality gate Linux permanece verde, e o workflow Windows associado à tag é a verificação autoritativa dos executáveis e do empacotamento para Windows.
+
 ## [0.1.0] — 2026-08-20
 
 ### Recursos

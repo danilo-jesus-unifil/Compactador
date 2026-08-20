@@ -153,7 +153,7 @@ mod windows_backend {
     }
 
     impl RegistryBackend for WindowsRegistry {
-        type Error = winreg::Error;
+        type Error = std::io::Error;
 
         fn read(
             &self,

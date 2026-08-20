@@ -168,11 +168,11 @@ impl AnalysisAccumulator {
             .into_iter()
             .max_by_key(|(_, size)| *size)
             .map(|(category, _)| category);
-        let estimated = if self.total_size_bytes == 0 {
-            0
-        } else {
-            (self.weighted_compressibility / self.total_size_bytes).min(100) as u8
-        };
+        let estimated = self
+            .weighted_compressibility
+            .checked_div(self.total_size_bytes)
+            .unwrap_or(0)
+            .min(100) as u8;
         SelectionAnalysis {
             files: self.files,
             directories: self.directories,
