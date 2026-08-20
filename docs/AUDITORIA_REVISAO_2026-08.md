@@ -366,3 +366,32 @@ A versão do workspace e dos quatro pacotes locais foi incrementada de `0.1.13` 
 O workflow [Windows release](https://github.com/danilo-jesus-unifil/Compactador/actions/runs/32420578348) terminou com sucesso no job `Build Windows release` em `windows-latest`, incluindo a suíte debug e release. A release publicou [`Compactador-v0.1.14-windows-x86_64.zip`](https://github.com/danilo-jesus-unifil/Compactador/releases/download/v0.1.14/Compactador-v0.1.14-windows-x86_64.zip), com 318.503 bytes, e [`Compactador-v0.1.14-windows-x86_64.zip.sha256`](https://github.com/danilo-jesus-unifil/Compactador/releases/download/v0.1.14/Compactador-v0.1.14-windows-x86_64.zip.sha256), com 106 bytes. O pacote baixado contém `compactador-launcher.exe` e `compactador-compressor.exe`; `sha256sum -c` retornou `OK`.
 
 Permanecem como limitações a validação visual do Explorer, Registry real, Windows 10/11, UNC, caminhos longos e seleções múltiplas extensas em Windows; a ausência de handler próprio de Ctrl+C no CLI; a proteção TOCTOU não absoluta do diretório final de extração em Unix; a indisponibilidade de `cargo-audit`; o aviso de depreciação do runtime Node.js 20 em actions atuais; e o caráter reservado, não ativo, de `CompressionRequest`, `OperationStatus` e `parallel`.
+
+## Investigação exploratória após v0.1.14 — problemas adicionais reproduzidos
+
+Esta passagem foi iniciada para procurar problemas que a suíte anterior não cobria e comportamentos que poderiam falhar em condições reais. Além do código e dos testes existentes, foram revisados os usos de `read_dir`, a análise de seleção, o container, a validação de filesystem, o CLI, o pipeline de operação, o manager de Registry e o workflow. Também foram consultadas as regras oficiais do Windows sobre nomes de arquivos [1] e sensibilidade a maiúsculas/minúsculas [2].
+
+### Achados reproduzidos e correções
+
+A análise e a compactação percorriam `read_dir` sem ordenar seus resultados. Como a ordem do filesystem não é um contrato, isso podia mudar a amostra dos primeiros 4.096 arquivos de uma seleção grande e também a ordem dos entries ZIP. Os dois fluxos agora materializam e ordenam os filhos por nome antes de processá-los. O teste `directory_entries_are_emitted_in_sorted_order` reproduz a criação invertida de `z.txt` e `a.txt` e confirma a ordem lexical no archive.
+
+A validação de ZIP comparava nomes apenas com igualdade exata. Um archive criado em Linux poderia conter `Foo.txt` e `foo.txt`, nomes tratados como equivalentes pelo comportamento padrão do Windows. A validação e a extração agora usam uma chave case-insensitive conservadora, removem a barra final para a comparação lógica e rejeitam também conflitos entre arquivo e diretório. O teste `rejects_case_insensitive_duplicate_archive_names` cobre o caso reproduzido.
+
+A verificação de sobreposição entre entrada e saída usava comparação sensível a maiúsculas/minúsculas e `starts_with` diretamente sobre `Path`. Em Windows isso podia não reconhecer uma saída dentro da entrada quando a capitalização diferisse, ou confundir prefixos de componentes. Foram adicionadas funções de comparação específicas para Windows e um teste `rejects_case_insensitive_output_inside_input_directory`, executado apenas nessa plataforma pelo CI.
+
+A validação de nomes reservados cobria COM1–COM9 e LPT1–LPT9, mas não cobria COM¹–COM³ e LPT¹–LPT³, que também são reconhecidos como nomes de dispositivo pelo Windows [1]. Esses nomes foram acrescentados e passaram a ter regressão unitária.
+
+### Riscos plausíveis confirmados, mas não eliminados
+
+A investigação confirmou janelas TOCTOU entre `symlink_metadata`/`File::open` durante compactação, entre a verificação do destino e a publicação/renomeação durante extração e entre `read`/`delete` no Registry. Os temporários, a validação CRC, o hard link sem sobrescrita e a política de não seguir links reduzem o impacto, mas não oferecem uma garantia absoluta contra um concorrente adversarial que possa alterar o filesystem ou o Registry durante a operação. Uma correção completa exigiria APIs de handles e flags específicas de cada plataforma, além de testes em Windows real; o risco permanece explicitamente documentado.
+
+O Windows padrão trata nomes de arquivo e diretório como case-insensitive, embora existam diretórios configurados como case-sensitive [2]. A política adotada pelo Compactador é conservadora para o alvo Windows padrão e pode rejeitar archives que seriam possíveis em um diretório Windows explicitamente case-sensitive. Essa decisão é deliberada para priorizar portabilidade e evitar extrações ambíguas no Explorer.
+
+### Validação desta passagem
+
+Foram aprovados `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`, `cargo build --workspace --release --locked`, `cargo tree -d`, `cargo metadata --locked --format-version 1`, `git diff --check` e o E2E dos binários release. A suíte Linux ficou com 40 testes: 18 do core, 11 do container, 5 do compressor e 6 da integração Windows em memória. O CI Windows deverá acrescentar o teste específico da plataforma, totalizando 41 naquele ambiente.
+
+### Referências
+
+[1]: https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file "Microsoft Learn: Naming Files, Paths, and Namespaces"
+[2]: https://learn.microsoft.com/en-us/windows/wsl/case-sensitivity "Microsoft Learn: Adjust case sensitivity"

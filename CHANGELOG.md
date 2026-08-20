@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.1.15] — 2026-08-20
+
+### Correções encontradas na investigação exploratória
+
+A compactação e a análise de diretórios passaram a ordenar explicitamente os filhos em ordem lexical, eliminando a dependência da ordem não especificada de `read_dir`. Isso torna a amostra heurística e a ordem dos entries ZIP reproduzíveis entre filesystems.
+
+A validação e a extração de ZIP agora rejeitam colisões que diferem apenas por maiúsculas/minúsculas, incluindo conflitos entre arquivo e diretório com o mesmo nome lógico. Essa política é conservadora para o comportamento padrão do Windows, que normalmente trata esses nomes como equivalentes.
+
+A comparação de sobreposição entre entrada e saída passou a usar comparação case-insensitive e separação correta de componentes no Windows. Também foram acrescentados os nomes reservados COM¹–COM³ e LPT¹–LPT³ à validação de caminhos, conforme a nomenclatura de dispositivos do Windows.
+
+### Testes
+
+A suíte Linux passou a ter 40 testes: 18 do core, 11 do container, 5 do compressor e 6 da integração Windows em memória. O CI Windows também executará o teste específico de sobreposição case-insensitive, elevando a contagem da plataforma para 41. Foram repetidos testes debug e release, Clippy, build release, metadados, árvore de dependências e E2E.
+
+### Riscos ainda não eliminados
+
+A investigação também confirmou janelas TOCTOU entre validar e abrir entradas, entre verificar e publicar extração e entre ler e remover valores do Registry. A implementação reduz superfícies de risco e usa temporários/publicação sem sobrescrita, mas não oferece garantias absolutas contra concorrência adversarial sem APIs de handles específicas de cada plataforma. Esses itens permanecem documentados como limitações, não como correções concluídas.
+
 ## [0.1.14] — 2026-08-20
 
 ### Auditoria de manutenção
