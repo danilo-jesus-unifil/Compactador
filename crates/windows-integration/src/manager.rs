@@ -51,15 +51,24 @@ where
 
     pub fn install(&self) -> Result<InstallationReport, B::Error> {
         let before = self.inspect()?;
-        if before == InstallationState::Installed {
-            return Ok(self.report(
+        match before {
+            InstallationState::Installed => Ok(self.report(
                 InstallationState::Installed,
                 0,
                 true,
                 "integração já instalada; nenhuma alteração necessária",
-            ));
+            )),
+            InstallationState::RepairRequired => Ok(self.report(
+                InstallationState::RepairRequired,
+                0,
+                false,
+                "valores divergentes detectados; use repair para substituí-los explicitamente",
+            )),
+            _ => self.apply_install(),
         }
+    }
 
+    fn apply_install(&self) -> Result<InstallationReport, B::Error> {
         let previous = self
             .definition
             .entries
@@ -121,7 +130,7 @@ where
 
     pub fn repair(&self) -> Result<InstallationReport, B::Error> {
         let before = self.inspect()?;
-        let report = self.install()?;
+        let report = self.apply_install()?;
         let mut report = InstallationReport {
             messages: report.messages,
             ..report
@@ -272,6 +281,48 @@ mod tests {
             .expect("second installation should succeed");
         assert_eq!(second.changed_entries, 0);
         assert!(manager.repair().expect("repair should succeed").verified);
+    }
+
+    #[test]
+    fn install_preserves_mismatched_values_until_explicit_repair() {
+        let definition = expected_definition(Path::new("C:\\Compactador\\compressor.exe"));
+        let registry = InMemoryRegistry::with_entries(definition.entries.clone());
+        let mismatched = definition.entries[0].clone();
+        registry
+            .write(&RegistryEntry {
+                value: "foreign-owner".to_owned(),
+                ..mismatched.clone()
+            })
+            .expect("mismatched value should write");
+        let manager = InstallationManager::new(registry.clone(), definition);
+        let report = manager.install().expect("conflict should be reported");
+        assert_eq!(report.state, InstallationState::RepairRequired);
+        assert_eq!(report.changed_entries, 0);
+        assert!(!report.verified);
+        assert_eq!(
+            registry
+                .read(
+                    mismatched.hive,
+                    &mismatched.key,
+                    mismatched.value_name.as_deref()
+                )
+                .ok()
+                .flatten(),
+            Some("foreign-owner".to_owned())
+        );
+        let repaired = manager.repair().expect("explicit repair should succeed");
+        assert!(repaired.verified);
+        assert_eq!(
+            registry
+                .read(
+                    mismatched.hive,
+                    &mismatched.key,
+                    mismatched.value_name.as_deref()
+                )
+                .ok()
+                .flatten(),
+            Some(mismatched.value)
+        );
     }
 
     #[test]
