@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.5] — 2026-08-20
+
+### Correções e hardening
+
+A integração do Explorer agora registra os nomes textuais aceitos pelo compressor (`fast`, `low`, `normal`, `high` e `maximum`), corrigindo o contrato entre o Registro e o parser CLI. O launcher também retorna falha explícita quando executado fora do Windows, em vez de reportar uma instalação não realizada como sucesso.
+
+Seleções compostas somente por diretórios, inclusive diretórios vazios, passaram a ser aceitas pelo seletor e pelo fluxo de compactação. A política de segurança contra symlinks e reparse points foi unificada entre análise, compactação e validação de entradas; a razão máxima de expansão também é verificada durante o streaming da extração, reduzindo consumo desnecessário antes do bloqueio.
+
+### Validação
+
+Foram executados `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test --workspace`, `cargo test --workspace --release`, `cargo clippy --workspace --all-targets --all-features -- -D warnings`, `cargo build --workspace --release`, `cargo tree -d` e `git diff --check`. A suíte atual totaliza 26 testes e passou no ambiente Linux. A verificação RustSec permanece pendente porque `cargo-audit` não está instalado neste ambiente.
+
+### Limitações conhecidas
+
+A validação real do Registro, da aparência do menu, de seleções múltiplas extensas, de caminhos UNC e longos e da integração em Windows 10/11 continua dependente do workflow e de testes manuais em Windows. A proteção contra TOCTOU entre validação e leitura não é absoluta, e o paralelismo de arquivos independentes continua deliberadamente desativado.
+
 ## [0.1.4] — 2026-08-20
 
 ### Auditoria e hardening

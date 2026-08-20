@@ -53,3 +53,51 @@ A seleção múltipla pelo verbo estático continua dependente do limite de linh
 ## Estado final para release
 
 Após a segunda revisão, o workspace foi preparado para o release **v0.1.4**. O arquivo `Cargo.lock` foi regenerado pela validação do workspace, a versão compartilhada foi atualizada e as notas públicas estão em `docs/RELEASE_NOTES_0.1.4.md`. O workflow Windows permanece a verificação autoritativa para os executáveis e os artefatos específicos do sistema operacional.
+
+## Nova passagem de auditoria — prompt 4
+
+A revisão foi reiniciada sobre o commit `5531f28` e a tag `v0.1.4`. O working tree estava limpo, `main` estava sincronizada com `origin/main` e o release possuía artefatos Windows publicados pelo workflow aprovado. O inventário atual confirma workspace Rust com crates separados para `core`, `windows-integration`, `launcher` e `compressor`, testes de integração do container, documentação de compatibilidade e workflow de release.
+
+| Família de requisitos históricos | Situação de linha de base | Evidência inicial |
+| --- | --- | --- |
+| Compactação por Explorer e níveis | Implementação estática registrada e níveis disponíveis; integração visual real ainda depende de Windows | `crates/windows-integration`, `docs/DECISAO_INTEGRACAO_WINDOWS.md` |
+| Launcher/Manager | Fluxos install/verify/repair/remove e definição centralizada presentes | `crates/windows-integration/src/manager.rs` |
+| Seleção, Unicode e diretórios | Parser tipado, validação de links e enumeração em streaming presentes | `crates/core/src/selection`, `filesystem`, `container` |
+| Estratégia e container | Deflate/Store conectados ao ZIP, CRC, limites e staging presentes | `crates/core/src/container`, `selection`, `analysis` |
+| Descompactação | API do core e fluxo CLI `--decompress` presentes; UX de extração pelo Explorer não faz parte do escopo registrado | `crates/compressor/src/main.rs` |
+| Segurança | Traversal, duplicidades, saída existente, links/reparse points, temporários exclusivos e razão de expansão cobertos | testes do core e documentação de auditoria |
+| Desempenho | Streaming de dados e enumeração; paralelismo deliberadamente não anunciado | `README.md`, `RELEASE_NOTES_0.1.4.md` |
+| Compatibilidade Windows | CI Windows verde para build e empacotamento; validação manual do Explorer ainda pendente | `.github/workflows/release.yml`, `docs/COMPATIBILIDADE_WINDOWS.md` |
+
+O foco desta nova passagem será procurar falhas residuais ou afirmações ainda superficiais, especialmente em parsing de argumentos, estados vazios, fluxos repetidos, API pública, `expect` em caminhos operacionais, consistência entre documentação e implementação, política de Registro, integridade do container, testes de regressão e comportamento do workflow. Nenhuma alteração será feita apenas para aumentar o diff.
+
+## Fechamento da passagem de auditoria — prompt 4
+
+A implementação foi revisada sobre a linha de base do commit `5531f28` e recebeu correções incrementais antes do release `v0.1.5`. O primeiro bloqueador encontrado foi um import órfão em `crates/launcher/src/main.rs`, deixado após a correção do código de saída para plataformas não suportadas. O import foi removido e o launcher release foi recompilado e executado em Linux: `install` informa que a integração requer Windows e retorna código 1.
+
+A inspeção do protocolo Explorer → CLI encontrou uma incompatibilidade concreta: o Registro construía comandos com o valor numérico de `CompressionLevel`, enquanto o parser público do compressor aceitava apenas os nomes textuais. A definição central de Registro passou a usar `cli_name()`, e um teste verifica os cinco comandos registrados (`fast`, `low`, `normal`, `high` e `maximum`).
+
+O seletor heurístico foi ajustado para distinguir uma seleção sem arquivos de uma seleção legítima composta somente por diretórios. O `InputProfile` agora carrega `directory_count`, o compressor propaga essa informação e um teste confirma a compactação de diretório vazio. A validação de links foi centralizada em `is_link_or_reparse_point`: análise e compactação rejeitam links simbólicos e reparse points tanto na raiz quanto durante a travessia, evitando que as camadas adotem políticas diferentes.
+
+A razão de expansão máxima passou a ser aplicada pela mesma função compartilhada em validação e extração e também é verificada durante a leitura incremental de cada entrada. Isso permite abortar mais cedo quando o conteúdo expandido já excede a razão permitida, sem substituir a validação final de checksum e tamanho.
+
+| Verificação | Resultado observado |
+| --- | --- |
+| `cargo fmt --all -- --check` | Aprovado |
+| `cargo check --workspace` | Aprovado |
+| `cargo test --workspace` | Aprovado; 26 testes |
+| `cargo test --workspace --release` | Aprovado; 26 testes |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | Aprovado, sem warnings |
+| `cargo build --workspace --release` | Aprovado |
+| `cargo tree -d` | Sem duplicações para imprimir |
+| `git diff --check` | Aprovado |
+| `cargo-audit` | Não executado; ferramenta indisponível |
+| `compactador-launcher install` em Linux | Retornou código 1, conforme esperado |
+
+### Limitações remanescentes após a passagem
+
+A integração efetiva com o Registro e a aparência do menu do Explorer não foram executadas neste ambiente Linux. Permanecem pendentes a validação manual em Windows 10/11, a confirmação de seleções múltiplas extensas, caminhos UNC e longos, e a verificação visual do verbo estático. A proteção contra TOCTOU entre a validação e a leitura posterior foi reduzida por revalidações e pela recusa de symlinks/reparse points, mas não é absoluta sem uma estratégia específica de handles por plataforma. O paralelismo de arquivos independentes permanece desativado e não é anunciado sem benchmark. A auditoria RustSec continua pendente porque `cargo-audit` não está instalado.
+
+### Decisão de release
+
+Com os gates locais aprovados e a documentação atualizada, a versão compartilhada do workspace foi incrementada para `0.1.5`. A publicação dos executáveis Windows continua condicionada ao workflow `windows-latest`, acionado pela tag anotada `v0.1.5`; a aprovação desse workflow será registrada após sua conclusão.
