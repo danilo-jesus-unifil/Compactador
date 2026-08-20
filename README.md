@@ -38,6 +38,7 @@ Como o ambiente de desenvolvimento atual é Linux, o comportamento dependente do
 cargo fmt --all -- --check
 cargo check --workspace --locked
 cargo test --workspace --locked
+cargo test --workspace --release --locked
 cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 ```
 

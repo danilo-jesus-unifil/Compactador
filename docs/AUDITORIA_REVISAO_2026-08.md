@@ -318,3 +318,27 @@ A versão do workspace e dos quatro pacotes locais foi incrementada de `0.1.11` 
 O workflow [Windows release](https://github.com/danilo-jesus-unifil/Compactador/actions/runs/32419527902) terminou com sucesso no job `Build Windows release` em `windows-latest`. A release publicou [`Compactador-v0.1.12-windows-x86_64.zip`](https://github.com/danilo-jesus-unifil/Compactador/releases/download/v0.1.12/Compactador-v0.1.12-windows-x86_64.zip), com 318.100 bytes, e [`Compactador-v0.1.12-windows-x86_64.zip.sha256`](https://github.com/danilo-jesus-unifil/Compactador/releases/download/v0.1.12/Compactador-v0.1.12-windows-x86_64.zip.sha256), com 106 bytes. O pacote baixado contém `compactador-launcher.exe` e `compactador-compressor.exe`; `sha256sum -c` retornou `OK`.
 
 Permanecem como limitações a validação visual do Explorer, Registry real, Windows 10/11, UNC, caminhos longos e seleções múltiplas extensas em Windows; a ausência de handler próprio de Ctrl+C no CLI; a proteção TOCTOU não absoluta do diretório final de extração em Unix; a indisponibilidade de `cargo-audit`; e o caráter reservado, não ativo, de `CompressionRequest`, `OperationStatus` e `parallel`.
+
+## Nova passagem após v0.1.12 — validação explícita da suíte release no CI
+
+A nova auditoria foi iniciada sobre `main` limpo, com a release `v0.1.12` publicada e seus artefatos Windows verificados. O prompt completo e `docs/BOAS_PRATICAS_GIT_E_PROJETO.md` foram lidos antes da inspeção. Foram reavaliados requisitos funcionais, CLI/UX, arquitetura, segurança, desempenho, compatibilidade Windows, modularização, dependências, documentação, workflow e regressões.
+
+### Resultado da revisão independente
+
+A linha de base passou com 38 testes, todos os comandos de qualidade locais e o E2E dos binários release. A varredura independente não encontrou novos bugs funcionais relevantes, placeholders operacionais, dependências duplicadas, perda de Unicode, traversal, publicação sem validação, remoção indevida de valores externos, uso de dados falsos ou divergências adicionais relevantes entre código e documentação.
+
+Foi identificada uma lacuna de cobertura no workflow: o CI Windows executava `cargo test --workspace --locked` e compilava os binários release, mas não executava a suíte em modo release. Isso não invalidava a compilação nem os testes locais, mas permitia uma diferença entre a validação Windows e a validação do artefato otimizado.
+
+### Correção implementada
+
+O workflow `.github/workflows/release.yml` passou a executar `cargo test --workspace --release --locked` entre os testes debug e Clippy, antes do build e empacotamento. O README foi alinhado para documentar a mesma matriz de comandos. Nenhuma dependência ou comportamento funcional foi alterado.
+
+### Validação pós-correção
+
+Passaram `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`, `cargo build --workspace --release --locked`, `cargo tree -d`, `cargo metadata --locked --format-version 1`, `git diff --check` e o E2E dos binários release. A suíte permanece com 38 testes: 18 do core, 9 do container, 5 do compressor e 6 da integração Windows em memória. `cargo-audit` continua indisponível.
+
+### Preparação do release 0.1.13
+
+A versão do workspace e dos quatro pacotes locais foi incrementada de `0.1.12` para `0.1.13`; `Cargo.lock`, `CHANGELOG.md`, README, auditoria e notas públicas foram atualizados. A validação Windows, a tag anotada e os artefatos só devem ser registrados após a conclusão do workflow em `windows-latest` e a verificação local do checksum.
+
+Permanecem como limitações a validação visual do Explorer, Registry real, Windows 10/11, UNC, caminhos longos e seleções múltiplas extensas em Windows; a ausência de handler próprio de Ctrl+C no CLI; a proteção TOCTOU não absoluta do diretório final de extração em Unix; a indisponibilidade de `cargo-audit`; o aviso de depreciação do runtime Node.js 20 em actions atuais; e o caráter reservado, não ativo, de `CompressionRequest`, `OperationStatus` e `parallel`.

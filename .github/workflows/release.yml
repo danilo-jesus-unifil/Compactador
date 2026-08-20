@@ -26,6 +26,7 @@ jobs:
           cargo fmt --all -- --check
           cargo check --workspace --locked
           cargo test --workspace --locked
+          cargo test --workspace --release --locked
           cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 
       - name: Build release binaries
