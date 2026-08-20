@@ -2,10 +2,17 @@ use crate::error::{CoreError, CoreResult};
 use std::path::{Component, Path, PathBuf};
 
 pub fn safe_relative_path(path: &Path) -> CoreResult<PathBuf> {
-    if path.is_absolute() {
-        return Err(CoreError::InvalidInput(
-            "caminho armazenado deve ser relativo".to_owned(),
-        ));
+    let raw = path.to_string_lossy();
+    if path.is_absolute()
+        || raw.starts_with('/')
+        || raw.starts_with('\\')
+        || raw.contains(':')
+        || raw.contains('\\')
+    {
+        return Err(CoreError::InvalidInput(format!(
+            "caminho armazenado deve ser relativo e portátil: {}",
+            path.display()
+        )));
     }
     let mut safe = PathBuf::new();
     for component in path.components() {
@@ -29,15 +36,24 @@ pub fn safe_relative_path(path: &Path) -> CoreResult<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::Path;
 
     #[test]
-    fn rejects_parent_traversal() {
-        assert!(safe_relative_path(Path::new("../arquivo.txt")).is_err());
+    fn rejects_parent_traversal_and_windows_absolute_forms() {
+        for path in [
+            "../arquivo.txt",
+            "C:\\arquivo.txt",
+            "\\\\servidor\\share\\arquivo.txt",
+            "pasta\\..\\arquivo.txt",
+        ] {
+            assert!(
+                safe_relative_path(Path::new(path)).is_err(),
+                "unsafe path accepted: {path}"
+            );
+        }
     }
 
     #[test]
-    fn accepts_nested_relative_path() {
+    fn accepts_nested_portable_relative_path() {
         let result = safe_relative_path(Path::new("pasta/arquivo.txt"));
         assert_eq!(result.ok().as_deref(), Some(Path::new("pasta/arquivo.txt")));
     }

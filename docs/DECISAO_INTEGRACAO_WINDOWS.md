@@ -8,7 +8,7 @@ O registro será feito no escopo do usuário, em `HKEY_CURRENT_USER\Software\Cla
 
 ## Estrutura escolhida
 
-O menu principal terá um verbo exclusivo do aplicativo, com `MUIVerb` para o rótulo visível e `SubCommands` contendo os verbos de nível em ordem explícita. Os subcomandos serão definidos em um conjunto reutilizável no escopo do usuário. Cada subcomando apontará para o executável operacional e receberá o nível solicitado.
+O menu principal terá um verbo exclusivo do aplicativo em `*\\shell` e `Directory\\shell`, com `MUIVerb` para o rótulo visível e `SubCommands` contendo os verbos de nível em ordem explícita. O conjunto de comandos filhos é compartilhado por meio do `CommandStore`, enquanto cada alvo mantém sua própria entrada de menu. Os subcomandos serão definidos em um conjunto reutilizável no escopo do usuário. Cada subcomando apontará para o executável operacional e receberá o nível solicitado.
 
 | Elemento | Decisão | Motivo |
 | --- | --- | --- |
@@ -16,7 +16,8 @@ O menu principal terá um verbo exclusivo do aplicativo, com `MUIVerb` para o r�
 | Rótulo | `MUIVerb` | Separa o identificador estável do texto exibido |
 | Filhos | `SubCommands` com ordem explícita | Permite apresentar Rápida, Baixa, Normal, Alta e Máxima |
 | Comando | Executável externo | Mantém compressão fora do processo do Explorer |
-| Escopo inicial | `HKCU\Software\Classes` | Instalação por usuário e menor privilégio |
+| Escopo inicial | `HKCU\\Software\\Classes` | Instalação por usuário e menor privilégio |
+| Alvos de seleção | `*` e `Directory` | Abrange arquivos e pastas selecionados sem depender de uma única associação |
 | Fallback | Diagnóstico e estado `RepairRequired` | Não apagar recursos fora do escopo do aplicativo |
 
 ## Seleção múltipla
