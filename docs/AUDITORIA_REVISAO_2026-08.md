@@ -281,6 +281,6 @@ Passaram `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `carg
 
 ### Preparação do release 0.1.11
 
-A versão do workspace e dos quatro pacotes locais foi incrementada de `0.1.10` para `0.1.11`; `Cargo.lock`, `CHANGELOG.md`, as notas públicas e esta auditoria foram atualizados. A validação Windows, a tag anotada e os artefatos só devem ser registrados após a conclusão do workflow em `windows-latest` e a verificação local do checksum.
+A versão do workspace e dos quatro pacotes locais foi incrementada de `0.1.10` para `0.1.11`; `Cargo.lock`, `CHANGELOG.md`, as notas públicas e esta auditoria foram atualizados. A preparação foi commitada em `00319e6`, com a mensagem `chore: prepare release v0.1.11`; a tag anotada `v0.1.11` aponta para esse commit e está publicada em https://github.com/danilo-jesus-unifil/Compactador/releases/tag/v0.1.11.
 
 Permanecem como limitações a validação visual do Explorer, Registry real, Windows 10/11, UNC, caminhos longos e seleções múltiplas extensas em Windows; a ausência de handler próprio de Ctrl+C no CLI; a proteção TOCTOU não absoluta do diretório final de extração em Unix; a indisponibilidade de `cargo-audit`; e o caráter reservado, não ativo, de `CompressionRequest`, `OperationStatus` e `parallel`.
