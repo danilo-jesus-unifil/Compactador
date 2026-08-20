@@ -1,5 +1,7 @@
 use compactador_core::analysis::analyze_selection;
-use compactador_core::container::{compress_inputs_with_cancel, ArchiveSummary};
+use compactador_core::container::{
+    compress_inputs_with_strategy, ArchiveSummary, ContainerCompression,
+};
 use compactador_core::error::{CoreError, CoreResult};
 use compactador_core::models::{OperationId, OperationPhase, ResourceProfile};
 use compactador_core::selection::{
@@ -64,7 +66,7 @@ pub fn run_operation(
     reporter: &dyn ProgressReporter,
 ) -> CoreResult<OperationResult> {
     let operation_id = OperationId::new();
-    let total_bytes = request
+    let initial_total_bytes = request
         .inputs
         .iter()
         .map(|input| input.size_bytes.unwrap_or(0))
@@ -74,10 +76,19 @@ pub fn run_operation(
         operation_id,
         OperationPhase::Analyzing,
         0,
-        total_bytes,
+        initial_total_bytes,
         "analisando seleção",
     );
     let analysis = analyze_selection(&request.inputs).map_err(CoreError::from)?;
+    let total_bytes = analysis.total_size_bytes;
+    report(
+        reporter,
+        operation_id,
+        OperationPhase::Analyzing,
+        0,
+        total_bytes,
+        "análise concluída",
+    );
     ensure_not_cancelled(token)?;
     let profile = InputProfile {
         total_size_bytes: analysis.total_size_bytes,
@@ -106,7 +117,24 @@ pub fn run_operation(
         total_bytes,
         "compactando em streaming",
     );
-    let summary = compress_inputs_with_cancel(
+    let compression = match strategy.algorithm_id.as_str() {
+        "store" => ContainerCompression::Store,
+        "deflate" => ContainerCompression::Deflate,
+        algorithm => {
+            return Err(CoreError::InvalidConfiguration(format!(
+                "algoritmo selecionado não suportado pelo container: {algorithm}"
+            )))
+        }
+    };
+    report(
+        reporter,
+        operation_id,
+        OperationPhase::Validating,
+        total_bytes,
+        total_bytes,
+        "validando integridade do container",
+    );
+    let summary = compress_inputs_with_strategy(
         request
             .inputs
             .iter()
@@ -114,7 +142,18 @@ pub fn run_operation(
             .collect::<Vec<_>>(),
         &output,
         request.level,
+        compression,
         &|| token.is_cancelled(),
+        &|completed_bytes| {
+            report(
+                reporter,
+                operation_id,
+                OperationPhase::Compressing,
+                completed_bytes,
+                total_bytes,
+                "compactando em streaming",
+            );
+        },
     )?;
     ensure_not_cancelled(token)?;
     report(
@@ -123,7 +162,7 @@ pub fn run_operation(
         OperationPhase::Finalizing,
         total_bytes,
         total_bytes,
-        "validando e finalizando arquivo",
+        "finalizando arquivo",
     );
     report(
         reporter,
@@ -224,7 +263,14 @@ mod tests {
             .map(|event| event.phase)
             .collect::<Vec<_>>();
         assert!(phases.contains(&OperationPhase::Analyzing));
+        assert!(phases.contains(&OperationPhase::Validating));
         assert!(phases.contains(&OperationPhase::Completed));
+        assert!(reporter
+            .0
+            .lock()
+            .expect("lock")
+            .iter()
+            .any(|event| event.phase == OperationPhase::Compressing && event.completed_bytes > 0));
         let _ = fs::remove_dir_all(root);
     }
 

@@ -104,23 +104,19 @@ impl StrategySelector for HeuristicStrategySelector {
                     | FileClassification::CompressedAudio
                     | FileClassification::Video
             );
-        let parallel = profile.file_count > 1
-            && resources.cpu_count > 1
-            && resources.max_workers > 1
-            && !resources.lightweight_mode
-            && !already_compressed;
+        let parallel = false;
         let (algorithm_id, rationale) = if already_compressed {
-            ("zip-deflate-conservative", format!("conteúdo predominantemente já comprimido; nível {level} mantém custo controlado"))
+            ("store", format!("conteúdo predominantemente já comprimido; armazenamento direto evita custo adicional no nível {level}"))
         } else if level == CompressionLevel::Maximum
             && resources.available_memory_bytes >= 256 * 1024 * 1024
         {
             (
-                "zip-deflate-max",
+                "deflate",
                 format!("nível {level} prioriza redução de tamanho para a categoria {category:?}"),
             )
         } else {
             (
-                "zip-deflate",
+                "deflate",
                 format!("categoria {category:?}, nível {level}, custo de CPU equilibrado"),
             )
         };
@@ -216,7 +212,7 @@ mod tests {
                 &ResourceProfile::default(),
             )
             .expect("strategy");
-        assert_eq!(strategy.algorithm_id, "zip-deflate-conservative");
+        assert_eq!(strategy.algorithm_id, "store");
         assert!(!strategy.parallel);
     }
 

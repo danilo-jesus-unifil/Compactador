@@ -4,7 +4,7 @@ use crate::models::{CompressionLevel, InputEntry, InputKind};
 use crate::security::safe_relative_path;
 use crc32fast::Hasher;
 use std::collections::HashSet;
-use std::fs::{self, File};
+use std::fs::{self, File, OpenOptions};
 use std::io::{BufReader, BufWriter, Read, Seek, Write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -15,6 +15,7 @@ use zip::{CompressionMethod, ZipArchive};
 pub const DEFAULT_BUFFER_SIZE: usize = 128 * 1024;
 pub const MAX_ENTRIES: usize = 1_000_000;
 pub const MAX_EXPANDED_BYTES: u64 = 1_u64 << 50;
+pub const MAX_COMPRESSION_RATIO: u64 = 10_000;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ArchiveEntry {
@@ -31,6 +32,12 @@ pub struct ArchiveSummary {
     pub entries: Vec<ArchiveEntry>,
     pub total_original_bytes: u64,
     pub total_compressed_bytes: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ContainerCompression {
+    Deflate,
+    Store,
 }
 
 pub fn compress_file(
@@ -55,25 +62,60 @@ pub fn compress_inputs_with_cancel(
     level: CompressionLevel,
     is_cancelled: &dyn Fn() -> bool,
 ) -> CoreResult<ArchiveSummary> {
+    compress_inputs_with_strategy(
+        paths,
+        output,
+        level,
+        ContainerCompression::Deflate,
+        is_cancelled,
+        &|_| {},
+    )
+}
+
+pub fn compress_inputs_with_strategy(
+    paths: impl AsRef<[PathBuf]>,
+    output: impl AsRef<Path>,
+    level: CompressionLevel,
+    compression: ContainerCompression,
+    is_cancelled: &dyn Fn() -> bool,
+    on_progress: &dyn Fn(u64),
+) -> CoreResult<ArchiveSummary> {
     let inputs = validate_inputs(paths.as_ref())?;
     let output = output.as_ref();
-    if inputs.iter().any(|entry| entry.path == output) {
-        return Err(CoreError::InvalidInput(
-            "o arquivo de saída não pode ser uma entrada".to_owned(),
-        ));
+    ensure_output_does_not_overlap_inputs(&inputs, output)?;
+    if output.exists() {
+        return Err(CoreError::InvalidInput(format!(
+            "o arquivo de saída já existe: {}",
+            output.display()
+        )));
     }
-    if let Some(parent) = output.parent() {
+    if let Some(parent) = output
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
         fs::create_dir_all(parent)?;
     }
     let temporary = temporary_path(output);
     let result = (|| {
-        let file = File::create(&temporary)?;
+        let file = create_temporary_file(&temporary)?;
+        let method = match compression {
+            ContainerCompression::Deflate => CompressionMethod::Deflated,
+            ContainerCompression::Store => CompressionMethod::Stored,
+        };
+        let compression_level = match compression {
+            ContainerCompression::Deflate => Some(i32::from(level.numeric_hint())),
+            ContainerCompression::Store => None,
+        };
         let options = FileOptions::default()
-            .compression_method(CompressionMethod::Deflated)
-            .compression_level(Some(i32::from(level.numeric_hint())));
+            .compression_method(method)
+            .compression_level(compression_level);
         let mut writer = ZipWriter::new(BufWriter::with_capacity(DEFAULT_BUFFER_SIZE, file));
         let mut names = HashSet::new();
-        let mut entries = Vec::new();
+        let mut completed_bytes = 0_u64;
+        let mut progress = |bytes: u64| {
+            completed_bytes = completed_bytes.saturating_add(bytes);
+            on_progress(completed_bytes);
+        };
         for input in &inputs {
             if is_cancelled() {
                 return Err(CoreError::Cancelled);
@@ -83,8 +125,8 @@ pub fn compress_inputs_with_cancel(
                 input,
                 options,
                 &mut names,
-                &mut entries,
                 is_cancelled,
+                &mut progress,
             )?;
         }
         let mut output_file = writer.finish().map_err(zip_error)?;
@@ -106,8 +148,8 @@ fn append_input<W: Write + Seek>(
     input: &InputEntry,
     options: FileOptions,
     names: &mut HashSet<String>,
-    entries: &mut Vec<ArchiveEntry>,
     is_cancelled: &dyn Fn() -> bool,
+    on_progress: &mut dyn FnMut(u64),
 ) -> CoreResult<()> {
     match input.kind {
         InputKind::File => {
@@ -125,7 +167,7 @@ fn append_input<W: Write + Seek>(
             writer.start_file(key, options).map_err(zip_error)?;
             let mut source =
                 BufReader::with_capacity(DEFAULT_BUFFER_SIZE, File::open(&input.path)?);
-            copy_with_cancel(&mut source, writer, is_cancelled)?;
+            copy_with_cancel(&mut source, writer, is_cancelled, on_progress)?;
         }
         InputKind::Directory => {
             let root_name = input
@@ -138,8 +180,8 @@ fn append_input<W: Write + Seek>(
                 &PathBuf::from(root_name),
                 options,
                 names,
-                entries,
                 is_cancelled,
+                on_progress,
             )?;
         }
     }
@@ -152,8 +194,8 @@ fn append_directory<W: Write + Seek>(
     relative: &Path,
     options: FileOptions,
     names: &mut HashSet<String>,
-    entries: &mut Vec<ArchiveEntry>,
     is_cancelled: &dyn Fn() -> bool,
+    on_progress: &mut dyn FnMut(u64),
 ) -> CoreResult<()> {
     if is_cancelled() {
         return Err(CoreError::Cancelled);
@@ -165,17 +207,8 @@ fn append_directory<W: Write + Seek>(
         )));
     }
     writer.add_directory(key, options).map_err(zip_error)?;
-    entries.push(ArchiveEntry {
-        path: relative.to_path_buf(),
-        is_directory: true,
-        original_size: 0,
-        compressed_size: 0,
-        checksum: 0,
-        data_offset: 0,
-    });
-    let mut children = fs::read_dir(directory)?.collect::<Result<Vec<_>, _>>()?;
-    children.sort_by_key(|entry| entry.file_name());
-    for child in children {
+    for child in fs::read_dir(directory)? {
+        let child = child?;
         let child_path = child.path();
         let metadata = fs::symlink_metadata(&child_path)?;
         let child_relative = relative.join(child.file_name());
@@ -192,8 +225,8 @@ fn append_directory<W: Write + Seek>(
                 &child_relative,
                 options,
                 names,
-                entries,
                 is_cancelled,
+                on_progress,
             )?;
         } else if metadata.is_file() {
             let key = normalized_name(&child_relative);
@@ -205,7 +238,7 @@ fn append_directory<W: Write + Seek>(
             writer.start_file(key, options).map_err(zip_error)?;
             let mut source =
                 BufReader::with_capacity(DEFAULT_BUFFER_SIZE, File::open(&child_path)?);
-            copy_with_cancel(&mut source, writer, is_cancelled)?;
+            copy_with_cancel(&mut source, writer, is_cancelled, on_progress)?;
         } else {
             return Err(CoreError::Unsupported(format!(
                 "tipo de entrada não suportado: {}",
@@ -226,11 +259,18 @@ pub fn validate_archive(path: impl AsRef<Path>) -> CoreResult<ArchiveSummary> {
         ));
     }
     let mut entries = Vec::with_capacity(archive.len());
+    let mut names = HashSet::new();
     let mut total_original_bytes = 0_u64;
     let mut total_compressed_bytes = 0_u64;
     for index in 0..archive.len() {
         let mut entry = archive.by_index(index).map_err(zip_error)?;
         let relative = safe_zip_path(&entry)?;
+        let name = normalized_name(&relative);
+        if !names.insert(name.clone()) {
+            return Err(CoreError::InvalidInput(format!(
+                "entrada duplicada no container: {name}"
+            )));
+        }
         let (original_size, compressed_size, checksum) = validate_entry(&mut entry)?;
         total_original_bytes =
             total_original_bytes
@@ -269,66 +309,98 @@ pub fn extract_archive(
     destination: impl AsRef<Path>,
 ) -> CoreResult<ArchiveSummary> {
     let destination = destination.as_ref();
-    fs::create_dir_all(destination)?;
-    let file = File::open(path)?;
-    let mut archive =
-        ZipArchive::new(BufReader::with_capacity(DEFAULT_BUFFER_SIZE, file)).map_err(zip_error)?;
-    if archive.len() > MAX_ENTRIES {
-        return Err(CoreError::InvalidInput(
-            "quantidade de entradas excede o limite".to_owned(),
-        ));
+    if destination.exists() {
+        return Err(CoreError::InvalidInput(format!(
+            "o destino de extração já existe: {}",
+            destination.display()
+        )));
     }
-    let mut entries = Vec::with_capacity(archive.len());
-    let mut total_original_bytes = 0_u64;
-    let mut total_compressed_bytes = 0_u64;
-    for index in 0..archive.len() {
-        let mut entry = archive.by_index(index).map_err(zip_error)?;
-        let relative = safe_zip_path(&entry)?;
-        let target = destination.join(&relative);
-        let (original_size, compressed_size, checksum) = if entry.is_dir() {
-            fs::create_dir_all(&target)?;
-            (0, 0, 0)
-        } else {
-            if let Some(parent) = target.parent() {
-                fs::create_dir_all(parent)?;
-            }
-            let temporary = temporary_path(&target);
-            let result = extract_entry(&mut entry, &temporary, &target);
-            if result.is_err() {
-                let _ = fs::remove_file(&temporary);
-            }
-            result?
-        };
-        total_original_bytes =
-            total_original_bytes
-                .checked_add(original_size)
-                .ok_or_else(|| {
-                    CoreError::InvalidInput("tamanho expandido excede o limite".to_owned())
-                })?;
-        if total_original_bytes > MAX_EXPANDED_BYTES {
+    if let Some(parent) = destination
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
+        fs::create_dir_all(parent)?;
+    }
+    let staging = temporary_path(destination);
+    let result = (|| {
+        fs::create_dir_all(&staging)?;
+        let file = File::open(path)?;
+        let mut archive = ZipArchive::new(BufReader::with_capacity(DEFAULT_BUFFER_SIZE, file))
+            .map_err(zip_error)?;
+        if archive.len() > MAX_ENTRIES {
             return Err(CoreError::InvalidInput(
-                "tamanho expandido excede o limite de segurança".to_owned(),
+                "quantidade de entradas excede o limite".to_owned(),
             ));
         }
-        total_compressed_bytes = total_compressed_bytes
-            .checked_add(compressed_size)
-            .ok_or_else(|| {
-                CoreError::InvalidInput("tamanho comprimido excede o limite".to_owned())
-            })?;
-        entries.push(ArchiveEntry {
-            path: relative,
-            is_directory: entry.is_dir(),
-            original_size,
-            compressed_size,
-            checksum,
-            data_offset: 0,
-        });
+        let mut entries = Vec::with_capacity(archive.len());
+        let mut total_original_bytes = 0_u64;
+        let mut total_compressed_bytes = 0_u64;
+        for index in 0..archive.len() {
+            let mut entry = archive.by_index(index).map_err(zip_error)?;
+            let relative = safe_zip_path(&entry)?;
+            let target = staging.join(&relative);
+            let (original_size, compressed_size, checksum) = if entry.is_dir() {
+                if target.exists() && !target.is_dir() {
+                    return Err(CoreError::InvalidInput(format!(
+                        "conflito de caminho no container: {}",
+                        relative.display()
+                    )));
+                }
+                fs::create_dir_all(&target)?;
+                (0, 0, 0)
+            } else {
+                if target.exists() {
+                    return Err(CoreError::InvalidInput(format!(
+                        "entrada duplicada no container: {}",
+                        relative.display()
+                    )));
+                }
+                if let Some(parent) = target.parent() {
+                    fs::create_dir_all(parent)?;
+                }
+                let temporary = temporary_path(&target);
+                let result = extract_entry(&mut entry, &temporary, &target);
+                if result.is_err() {
+                    let _ = fs::remove_file(&temporary);
+                }
+                result?
+            };
+            total_original_bytes =
+                total_original_bytes
+                    .checked_add(original_size)
+                    .ok_or_else(|| {
+                        CoreError::InvalidInput("tamanho expandido excede o limite".to_owned())
+                    })?;
+            if total_original_bytes > MAX_EXPANDED_BYTES {
+                return Err(CoreError::InvalidInput(
+                    "tamanho expandido excede o limite de segurança".to_owned(),
+                ));
+            }
+            total_compressed_bytes = total_compressed_bytes
+                .checked_add(compressed_size)
+                .ok_or_else(|| {
+                    CoreError::InvalidInput("tamanho comprimido excede o limite".to_owned())
+                })?;
+            entries.push(ArchiveEntry {
+                path: relative,
+                is_directory: entry.is_dir(),
+                original_size,
+                compressed_size,
+                checksum,
+                data_offset: 0,
+            });
+        }
+        fs::rename(&staging, destination)?;
+        Ok(ArchiveSummary {
+            entries,
+            total_original_bytes,
+            total_compressed_bytes,
+        })
+    })();
+    if result.is_err() {
+        let _ = fs::remove_dir_all(&staging);
     }
-    Ok(ArchiveSummary {
-        entries,
-        total_original_bytes,
-        total_compressed_bytes,
-    })
+    result
 }
 
 fn validate_entry(entry: &mut ZipFile<'_>) -> CoreResult<(u64, u64, u32)> {
@@ -360,7 +432,14 @@ fn validate_entry(entry: &mut ZipFile<'_>) -> CoreResult<(u64, u64, u32)> {
             entry.name()
         )));
     }
-    Ok((total, entry.compressed_size(), checksum))
+    let compressed_size = entry.compressed_size();
+    if compressed_size > 0 && total > compressed_size.saturating_mul(MAX_COMPRESSION_RATIO) {
+        return Err(CoreError::InvalidInput(format!(
+            "razão de expansão excede o limite de segurança: {}",
+            entry.name()
+        )));
+    }
+    Ok((total, compressed_size, checksum))
 }
 
 fn extract_entry(
@@ -368,7 +447,8 @@ fn extract_entry(
     temporary: &Path,
     target: &Path,
 ) -> CoreResult<(u64, u64, u32)> {
-    let mut output = BufWriter::with_capacity(DEFAULT_BUFFER_SIZE, File::create(temporary)?);
+    let mut output =
+        BufWriter::with_capacity(DEFAULT_BUFFER_SIZE, create_temporary_file(temporary)?);
     let mut hasher = Hasher::new();
     let mut total = 0_u64;
     let mut buffer = [0_u8; DEFAULT_BUFFER_SIZE];
@@ -416,6 +496,7 @@ fn copy_with_cancel(
     input: &mut dyn Read,
     output: &mut dyn Write,
     is_cancelled: &dyn Fn() -> bool,
+    on_progress: &mut dyn FnMut(u64),
 ) -> CoreResult<u64> {
     let mut buffer = [0_u8; DEFAULT_BUFFER_SIZE];
     let mut copied = 0_u64;
@@ -429,11 +510,50 @@ fn copy_with_cancel(
         }
         output.write_all(&buffer[..read])?;
         copied = copied.saturating_add(read as u64);
+        on_progress(read as u64);
     }
+}
+
+fn ensure_output_does_not_overlap_inputs(inputs: &[InputEntry], output: &Path) -> CoreResult<()> {
+    let output_absolute = if output.is_absolute() {
+        output.to_path_buf()
+    } else {
+        std::env::current_dir()?.join(output)
+    };
+    let output_path = if output_absolute.exists() {
+        fs::canonicalize(&output_absolute)?
+    } else if let Some(file_name) = output_absolute.file_name() {
+        let parent = output_absolute.parent().unwrap_or_else(|| Path::new("."));
+        let parent = if parent.exists() {
+            fs::canonicalize(parent)?
+        } else {
+            parent.to_path_buf()
+        };
+        parent.join(file_name)
+    } else {
+        output_absolute
+    };
+    for input in inputs {
+        let input_path = fs::canonicalize(&input.path)?;
+        let overlaps = match input.kind {
+            InputKind::File => input_path == output_path,
+            InputKind::Directory => output_path.starts_with(&input_path),
+        };
+        if overlaps {
+            return Err(CoreError::InvalidInput(
+                "o arquivo de saída coincide ou está dentro de uma entrada".to_owned(),
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn normalized_name(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "/")
+}
+
+fn create_temporary_file(path: &Path) -> CoreResult<File> {
+    Ok(OpenOptions::new().write(true).create_new(true).open(path)?)
 }
 
 fn temporary_path(target: &Path) -> PathBuf {
@@ -447,71 +567,4 @@ fn temporary_path(target: &Path) -> PathBuf {
 
 fn zip_error(error: zip::result::ZipError) -> CoreError {
     CoreError::InvalidInput(format!("container ZIP inválido: {error}"))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::fs;
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    fn temp_dir() -> PathBuf {
-        let stamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("clock")
-            .as_nanos();
-        std::env::temp_dir().join(format!("compactador-test-{stamp}"))
-    }
-
-    #[test]
-    fn compresses_validates_and_extracts_unicode_file() {
-        let root = temp_dir();
-        fs::create_dir_all(&root).expect("create root");
-        let input = root.join("Meu arquivo.txt");
-        let archive = root.join("saida.zip");
-        let destination = root.join("out");
-        let contents = "Rust e caminhos Unicode: ação, seleção e dados repetidos. ".repeat(256);
-        fs::write(&input, contents.as_bytes()).expect("write input");
-        let summary = compress_file(&input, &archive, CompressionLevel::Normal).expect("compress");
-        assert_eq!(summary.entries.len(), 1);
-        assert!(validate_archive(&archive).is_ok());
-        let extracted = extract_archive(&archive, &destination).expect("extract");
-        assert_eq!(extracted.total_original_bytes, contents.len() as u64);
-        assert_eq!(
-            fs::read(destination.join("Meu arquivo.txt")).expect("read output"),
-            contents.as_bytes()
-        );
-        let _ = fs::remove_dir_all(root);
-    }
-
-    #[test]
-    fn supports_directory_and_multiple_selection_without_following_symlinks() {
-        let root = temp_dir();
-        let folder = root.join("Projeto Rust");
-        fs::create_dir_all(folder.join("src")).expect("create folder");
-        fs::write(folder.join("README.md"), b"readme").expect("write readme");
-        fs::write(folder.join("src/main.rs"), b"fn main() {}").expect("write source");
-        let second = root.join("dados.csv");
-        fs::write(&second, b"a,b\n1,2\n").expect("write csv");
-        let archive = root.join("multi.zip");
-        let summary = compress_inputs(
-            vec![folder.clone(), second.clone()],
-            &archive,
-            CompressionLevel::Fast,
-        )
-        .expect("compress selection");
-        assert!(summary.entries.len() >= 4);
-        assert!(validate_archive(&archive).is_ok());
-        let _ = fs::remove_dir_all(root);
-    }
-
-    #[test]
-    fn rejects_invalid_archive() {
-        let root = temp_dir();
-        fs::create_dir_all(&root).expect("create root");
-        let path = root.join("bad.zip");
-        fs::write(&path, b"not-a-container").expect("write bad archive");
-        assert!(validate_archive(&path).is_err());
-        let _ = fs::remove_dir_all(root);
-    }
 }

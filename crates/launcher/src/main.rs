@@ -57,6 +57,10 @@ fn main() {
         print_help();
         return;
     };
+    if matches!(command.as_str(), "-h" | "--help") {
+        print_help();
+        return;
+    }
     if !matches!(command.as_str(), "install" | "verify" | "repair" | "remove") {
         eprintln!("comando inválido: {command}");
         print_help();

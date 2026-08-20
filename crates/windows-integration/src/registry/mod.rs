@@ -188,7 +188,11 @@ mod windows_backend {
                 Err(error) => return Err(error),
             };
             if let Some(value_name) = entry.value_name.as_deref() {
-                key.delete_value(value_name)
+                match key.delete_value(value_name) {
+                    Ok(()) => Ok(()),
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                    Err(error) => Err(error),
+                }
             } else {
                 drop(key);
                 root.delete_subkey_all(&entry.key)

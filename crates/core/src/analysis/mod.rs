@@ -104,7 +104,10 @@ pub fn analyze_file(path: impl AsRef<Path>) -> io::Result<FileAnalysis> {
 }
 
 pub fn analyze_selection(inputs: &[InputEntry]) -> io::Result<SelectionAnalysis> {
-    let mut accumulator = AnalysisAccumulator::default();
+    let mut accumulator = AnalysisAccumulator {
+        already_compressed: true,
+        ..AnalysisAccumulator::default()
+    };
     for input in inputs {
         match input.kind {
             InputKind::File => accumulator.add_file(&input.path)?,
@@ -179,7 +182,7 @@ impl AnalysisAccumulator {
             total_size_bytes: self.total_size_bytes,
             estimated_compressibility_percent: estimated,
             dominant_category,
-            already_compressed: self.already_compressed,
+            already_compressed: self.files > 0 && self.already_compressed,
             sampled: self.sampled,
         }
     }
@@ -188,9 +191,8 @@ impl AnalysisAccumulator {
 fn analyze_directory(path: &Path, accumulator: &mut AnalysisAccumulator) -> io::Result<()> {
     let mut pending = vec![path.to_path_buf()];
     while let Some(directory) = pending.pop() {
-        let mut children = std::fs::read_dir(&directory)?.collect::<Result<Vec<_>, _>>()?;
-        children.sort_by_key(|entry| entry.file_name());
-        for child in children {
+        for child in std::fs::read_dir(&directory)? {
+            let child = child?;
             let child_path = child.path();
             let metadata = std::fs::symlink_metadata(&child_path)?;
             if metadata.file_type().is_symlink() {
@@ -274,6 +276,24 @@ mod tests {
         let analysis = analyze_file(&path).expect("analysis");
         assert_eq!(analysis.classification.kind, FileClassification::Text);
         assert!(analysis.estimated_compressibility_percent > 0);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn marks_known_compressed_content_in_selection_analysis() {
+        let root = std::env::temp_dir().join(format!(
+            "compactador-analysis-archive-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).expect("create root");
+        let path = root.join("dados.zip");
+        fs::write(&path, b"conteudo de teste").expect("write archive placeholder");
+        let input = InputEntry::new(path.clone(), InputKind::File, Some(18));
+        let analysis = analyze_selection(&[input]).expect("selection analysis");
+        assert!(analysis.already_compressed);
         let _ = fs::remove_dir_all(root);
     }
 }

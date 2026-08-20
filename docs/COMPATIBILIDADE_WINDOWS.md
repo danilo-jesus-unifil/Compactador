@@ -18,7 +18,9 @@ Executar os testes em uma máquina de teste limpa, com uma conta de usuário sem
 
 ## Operação
 
-Testar um arquivo vazio, um arquivo de um byte, nomes com espaços, acentos, Unicode e parênteses, uma seleção de vários arquivos, uma pasta vazia, uma pasta com subpastas e arquivos heterogêneos, uma unidade UNC e um caminho longo quando o sistema estiver configurado para suportá-lo. Repetir cada cenário em Rápida, Baixa, Normal, Alta e Máxima, verificando que Normal permanece a opção recomendada e que todas as saídas podem ser validadas e extraídas.
+Além da compactação iniciada pelo Explorer, validar o fluxo operacional direto `compactador-compressor.exe --decompress --output destino -- arquivo.zip`. O destino deve ser novo; uma tentativa sobre pasta existente deve falhar sem modificar seu conteúdo. Confirmar que CRC inválido, traversal e entradas duplicadas falham sem deixar staging ou arquivos parciais.
+
+Testar `--help` e `-h` nos dois executáveis, um arquivo vazio, um arquivo de um byte, nomes com espaços, acentos, Unicode e parênteses, uma seleção de vários arquivos, uma pasta vazia, uma pasta com subpastas e arquivos heterogêneos, uma unidade UNC e um caminho longo quando o sistema estiver configurado para suportá-lo. Repetir cada cenário em Rápida, Baixa, Normal, Alta e Máxima, verificando que Normal permanece a opção recomendada e que todas as saídas podem ser validadas e extraídas.
 
 Medir o comportamento com mais de quinze arquivos selecionados e com uma seleção cuja linha de comando exceda o limite documentado para verbos estáticos. Se a seleção for truncada, duplicada ou invocada item a item, registrar a evidência e não anunciar suporte completo; nesse caso, migrar a camada de invocação para uma abordagem de shell capaz de preservar a seleção inteira, mantendo o compressor fora do processo do Explorer.
 

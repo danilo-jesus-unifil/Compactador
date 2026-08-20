@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.4] — 2026-08-20
+
+### Auditoria e hardening
+
+A revisão funcional corrigiu a propagação da estratégia efetiva para o container, distinguiu seleções totalmente comprimidas de seleções mistas, adicionou Store real, progresso incremental por bytes e fases explícitas de validação. O compressor passou a expor `--help`/`-h` e descompactação segura por `--decompress`.
+
+O container agora rejeita colisões de saída, saídas dentro das entradas, temporários concorrentes, destinos de extração existentes, entradas ZIP duplicadas, traversal e razões de expansão extremas. A enumeração de diretórios foi convertida para streaming, symlinks e reparse points são rejeitados na raiz e a remoção de valores ausentes do Registro Windows tornou-se idempotente. A suíte de testes do container foi separada para um teste de integração dedicado.
+
+### Validação
+
+A versão foi validada com `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test --workspace`, `cargo test --workspace --release`, `cargo clippy --workspace --all-targets --all-features -- -D warnings`, `cargo build --workspace --release`, `cargo tree -d` e `git diff --check`. O fluxo real de compactação, Store, descompactação e comparação do conteúdo restaurado também foi executado no Linux.
+
+### Limitações conhecidas
+
+A validação efetiva do Registro, da aparência do menu, de seleções múltiplas extensas, de caminhos UNC e longos e da integração em Windows 10/11 continua dependente do workflow e de testes em máquinas Windows. `cargo-audit` não estava instalado no ambiente desta revisão.
+
 ## [0.1.3] — 2026-08-20
 
 ### Correções finais de CI Windows
