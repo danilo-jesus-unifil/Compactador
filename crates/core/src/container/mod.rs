@@ -161,9 +161,21 @@ pub fn compress_inputs_with_strategy_and_validation(
         output_file.flush()?;
         output_file.get_ref().sync_all()?;
         drop(output_file);
+        if is_cancelled() {
+            return Err(CoreError::Cancelled);
+        }
         (callbacks.on_validation_start)();
+        if is_cancelled() {
+            return Err(CoreError::Cancelled);
+        }
         let summary = validate_archive(&temporary)?;
+        if is_cancelled() {
+            return Err(CoreError::Cancelled);
+        }
         (callbacks.on_finalizing_start)();
+        if is_cancelled() {
+            return Err(CoreError::Cancelled);
+        }
         publish_file_without_overwrite(&temporary, output)?;
         Ok(summary)
     })();

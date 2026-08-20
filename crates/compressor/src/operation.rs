@@ -78,6 +78,7 @@ pub fn run_operation(
         initial_total_bytes,
         "analisando seleção",
     );
+    ensure_not_cancelled(token, reporter, operation_id, initial_total_bytes)?;
     let analysis = analyze_selection(&request.inputs).map_err(CoreError::from)?;
     let total_bytes = analysis.total_size_bytes;
     report(
@@ -264,6 +265,21 @@ mod tests {
         events: Mutex<Vec<ProgressEvent>>,
     }
 
+    struct PhaseCancellingReporter {
+        token: CancellationToken,
+        phase: OperationPhase,
+        events: Mutex<Vec<ProgressEvent>>,
+    }
+
+    impl ProgressReporter for PhaseCancellingReporter {
+        fn report(&self, event: ProgressEvent) {
+            self.events.lock().expect("lock").push(event.clone());
+            if event.phase == self.phase {
+                self.token.cancel();
+            }
+        }
+    }
+
     impl ProgressReporter for CancellingReporter {
         fn report(&self, event: ProgressEvent) {
             self.events.lock().expect("lock").push(event.clone());
@@ -414,6 +430,49 @@ mod tests {
     }
 
     #[test]
+    fn cancellation_after_validation_start_discards_output() {
+        let root = std::env::temp_dir().join(format!(
+            "compactador-cancel-validation-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).expect("create root");
+        let input = root.join("entrada.txt");
+        let output = root.join("saida.zip");
+        fs::write(&input, b"dados repetidos dados repetidos").expect("write input");
+        let request = SelectionRequest::parse([
+            OsString::from("--compress"),
+            OsString::from("normal"),
+            OsString::from("--"),
+            input.as_os_str().to_os_string(),
+        ])
+        .expect("request");
+        let token = CancellationToken::default();
+        let reporter = PhaseCancellingReporter {
+            token: token.clone(),
+            phase: OperationPhase::Validating,
+            events: Mutex::new(Vec::new()),
+        };
+        let result = run_operation(
+            &request,
+            output.clone(),
+            ResourceProfile::default(),
+            &token,
+            &reporter,
+        );
+        assert!(matches!(result, Err(CoreError::Cancelled)));
+        assert!(!output.exists());
+        let events = reporter.events.lock().expect("lock").clone();
+        assert_eq!(
+            events.last().map(|event| event.phase),
+            Some(OperationPhase::Cancelled)
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn cancellation_is_reported_before_work_starts() {
         let root = std::env::temp_dir().join(format!(
             "compactador-cancel-{}",
@@ -433,8 +492,11 @@ mod tests {
         ])
         .expect("request");
         let token = CancellationToken::default();
-        token.cancel();
-        let reporter = RecordingReporter::default();
+        let reporter = PhaseCancellingReporter {
+            token: token.clone(),
+            phase: OperationPhase::Analyzing,
+            events: Mutex::new(Vec::new()),
+        };
         let result = run_operation(
             &request,
             root.join("saida.zip"),
@@ -443,7 +505,7 @@ mod tests {
             &reporter,
         );
         assert!(matches!(result, Err(CoreError::Cancelled)));
-        let events = reporter.0.lock().expect("lock").clone();
+        let events = reporter.events.lock().expect("lock").clone();
         assert_eq!(
             events.last().map(|event| event.phase),
             Some(OperationPhase::Cancelled)

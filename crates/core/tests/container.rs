@@ -142,6 +142,11 @@ fn extraction_rejects_traversal_and_existing_destination() {
         "C:\\escape.txt",
         "\\\\server\\share\\escape.txt",
         "pasta\\..\\escape.txt",
+        "CON.txt",
+        "NUL",
+        "arquivo?.txt",
+        "arquivo.txt ",
+        "arquivo.txt.",
     ]
     .into_iter()
     .enumerate()

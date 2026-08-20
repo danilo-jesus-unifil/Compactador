@@ -60,9 +60,35 @@ where
             ));
         }
 
+        let previous = self
+            .definition
+            .entries
+            .iter()
+            .map(|entry| {
+                self.backend
+                    .read(entry.hive, &entry.key, entry.value_name.as_deref())
+                    .map(|value| (entry.clone(), value))
+            })
+            .collect::<Result<Vec<_>, B::Error>>()?;
         let mut changed = 0_usize;
-        for entry in &self.definition.entries {
-            self.backend.write(entry)?;
+        for (index, entry) in self.definition.entries.iter().enumerate() {
+            if let Err(error) = self.backend.write(entry) {
+                let mut rollback_error = None;
+                for (previous_entry, previous_value) in previous.iter().take(index + 1).rev() {
+                    let result = match previous_value {
+                        Some(value) => self.backend.write(&RegistryEntry {
+                            value: value.clone(),
+                            ..previous_entry.clone()
+                        }),
+                        None => self.backend.delete(previous_entry),
+                    };
+                    if let Err(error) = result {
+                        rollback_error = Some(error);
+                        break;
+                    }
+                }
+                return Err(rollback_error.unwrap_or(error));
+            }
             changed += 1;
         }
         let after = self.inspect()?;
@@ -176,8 +202,58 @@ where
 mod tests {
     use super::*;
     use crate::expected_definition;
-    use crate::registry::InMemoryRegistry;
+    use crate::registry::{
+        InMemoryRegistry, RegistryBackend, RegistryEntry, RegistryError, RegistryHive,
+    };
     use std::path::Path;
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+
+    #[derive(Clone)]
+    struct FailingRegistry {
+        inner: InMemoryRegistry,
+        writes: Arc<AtomicUsize>,
+        fail_at: usize,
+    }
+
+    impl FailingRegistry {
+        fn new(fail_at: usize) -> Self {
+            Self {
+                inner: InMemoryRegistry::default(),
+                writes: Arc::new(AtomicUsize::new(0)),
+                fail_at,
+            }
+        }
+    }
+
+    impl RegistryBackend for FailingRegistry {
+        type Error = RegistryError;
+
+        fn read(
+            &self,
+            hive: RegistryHive,
+            key: &str,
+            value_name: Option<&str>,
+        ) -> Result<Option<String>, Self::Error> {
+            self.inner.read(hive, key, value_name)
+        }
+
+        fn write(&self, entry: &RegistryEntry) -> Result<(), Self::Error> {
+            let attempt = self.writes.fetch_add(1, Ordering::SeqCst) + 1;
+            if attempt == self.fail_at {
+                return Err(RegistryError {
+                    message: "falha de escrita simulada".to_owned(),
+                });
+            }
+            self.inner.write(entry)
+        }
+
+        fn delete(&self, entry: &RegistryEntry) -> Result<(), Self::Error> {
+            self.inner.delete(entry)
+        }
+    }
 
     #[test]
     fn installation_is_idempotent_and_repairable() {
@@ -196,6 +272,23 @@ mod tests {
             .expect("second installation should succeed");
         assert_eq!(second.changed_entries, 0);
         assert!(manager.repair().expect("repair should succeed").verified);
+    }
+
+    #[test]
+    fn installation_failure_rolls_back_partial_writes() {
+        let definition = expected_definition(Path::new("C:\\Compactador\\compressor.exe"));
+        let registry = FailingRegistry::new(3);
+        let observer = registry.clone();
+        let manager = InstallationManager::new(registry, definition);
+        let error = manager
+            .install()
+            .expect_err("intermediate registry failure should be returned");
+        assert_eq!(error.message, "falha de escrita simulada");
+        assert_eq!(
+            manager.inspect().ok(),
+            Some(InstallationState::NotInstalled)
+        );
+        assert!(observer.inner.is_empty());
     }
 
     #[test]
