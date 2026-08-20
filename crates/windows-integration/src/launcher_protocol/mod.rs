@@ -1,3 +1,8 @@
+//! Contratos de dados para uma futura ponte entre shell/launcher e compressor.
+//!
+//! O executável atual usa argumentos CLI diretamente; estes tipos não são IPC
+//! nem indicam que o Explorer já serializa uma `CompressionRequest`.
+
 use compactador_core::models::{CompressionLevel, InputEntry};
 use std::path::PathBuf;
 

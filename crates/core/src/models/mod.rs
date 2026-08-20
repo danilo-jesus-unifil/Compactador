@@ -137,6 +137,8 @@ pub enum OperationPhase {
     Cancelled,
 }
 
+/// Estado operacional reservado para consumidores futuros de UI/integração.
+/// O CLI atual informa fases por `ProgressEvent` e não mantém um store global.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OperationStatus {
     Pending,
@@ -186,6 +188,11 @@ pub enum InstallationState {
     RepairRequired,
 }
 
+/// Hints de recursos carregados pela operação.
+///
+/// O pipeline atual é deliberadamente single-threaded e não usa estes campos para
+/// criar workers ou alterar o algoritmo; eles permanecem como contrato explícito
+/// para uma futura evolução de agendamento, sem prometer paralelismo atual.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResourceProfile {
     pub available_memory_bytes: u64,
@@ -212,5 +219,7 @@ pub struct CompressionStrategy {
     pub level: CompressionLevel,
     pub rationale: String,
     pub estimated_gain_percent: u8,
+    /// Indica se o algoritmo selecionado pode ser executado em paralelo.
+    /// O valor atual é sempre `false` porque o pipeline não paraleliza arquivos.
     pub parallel: bool,
 }

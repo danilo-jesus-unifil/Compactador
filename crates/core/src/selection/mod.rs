@@ -75,7 +75,7 @@ pub trait StrategySelector {
         &self,
         profile: &InputProfile,
         level: CompressionLevel,
-        resources: &ResourceProfile,
+        _resources: &ResourceProfile,
     ) -> CoreResult<CompressionStrategy>;
 }
 
@@ -87,7 +87,7 @@ impl StrategySelector for HeuristicStrategySelector {
         &self,
         profile: &InputProfile,
         level: CompressionLevel,
-        resources: &ResourceProfile,
+        _resources: &ResourceProfile,
     ) -> CoreResult<CompressionStrategy> {
         if profile.file_count == 0 && profile.directory_count == 0 {
             return Err(CoreError::InvalidInput(
@@ -108,9 +108,7 @@ impl StrategySelector for HeuristicStrategySelector {
         let parallel = false;
         let (algorithm_id, rationale) = if already_compressed {
             ("store", format!("conteúdo predominantemente já comprimido; armazenamento direto evita custo adicional no nível {level}"))
-        } else if level == CompressionLevel::Maximum
-            && resources.available_memory_bytes >= 256 * 1024 * 1024
-        {
+        } else if level == CompressionLevel::Maximum {
             (
                 "deflate",
                 format!("nível {level} prioriza redução de tamanho para a categoria {category:?}"),
@@ -216,6 +214,40 @@ mod tests {
             .expect("strategy");
         assert_eq!(strategy.algorithm_id, "store");
         assert!(!strategy.parallel);
+    }
+
+    #[test]
+    fn resource_hints_do_not_fake_parallel_or_memory_tuning() {
+        let selector = HeuristicStrategySelector;
+        let profile = InputProfile {
+            total_size_bytes: 10,
+            file_count: 1,
+            directory_count: 0,
+            has_compressed_content: false,
+            dominant_category: Some(FileClassification::Text),
+        };
+        let low_resources = ResourceProfile {
+            available_memory_bytes: 1,
+            cpu_count: 1,
+            max_workers: 1,
+            lightweight_mode: true,
+        };
+        let high_resources = ResourceProfile {
+            available_memory_bytes: 8 * 1024 * 1024 * 1024,
+            cpu_count: 16,
+            max_workers: 4,
+            lightweight_mode: false,
+        };
+        let low = selector
+            .select(&profile, CompressionLevel::Maximum, &low_resources)
+            .expect("low-resource strategy");
+        let high = selector
+            .select(&profile, CompressionLevel::Maximum, &high_resources)
+            .expect("high-resource strategy");
+        assert_eq!(low.algorithm_id, high.algorithm_id);
+        assert_eq!(low.rationale, high.rationale);
+        assert!(!low.parallel);
+        assert!(!high.parallel);
     }
 
     #[test]
