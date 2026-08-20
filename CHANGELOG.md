@@ -10,7 +10,7 @@ A etapa `Validate` do workflow passou a usar `bash` com `set -euo pipefail`, imp
 
 ### Validação local
 
-Foram aprovados `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, Clippy estrito locked, `cargo build --workspace --release --locked`, `git diff --check` e o E2E dos binários release. A suíte Linux permanece com 40 testes; o CI Windows deverá confirmar a contagem final da plataforma após o ajuste de paths.
+Foram aprovados `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, Clippy estrito locked, `cargo build --workspace --release --locked`, `git diff --check` e o E2E dos binários release. A suíte possui 40 testes em Linux e Windows: 18 do core, 11 do container, 5 do compressor e 6 da integração Windows em memória. O CI Windows confirmou a regressão de separadores nativos e não registrou falhas.
 
 ### Riscos conhecidos
 

@@ -14,13 +14,13 @@ A versão também contém as correções exploratórias da v0.1.15: ordenação 
 
 ## Evidência da falha v0.1.15
 
-O log do workflow [`Run #32421723076`](https://github.com/danilo-jesus-unifil/Compactador/actions/runs/32421723076) registrou `test result: FAILED` para `directory_entries_are_emitted_in_sorted_order` e `supports_directory_and_multiple_selection_without_following_symlinks`, com erro de caminho `Projeto Rust\\a.txt`. Apesar disso, o shell padrão continuou até as etapas posteriores. A v0.1.16 só será considerada publicada após novo CI bloqueador e verificação de checksum.
+O log do workflow [`Run #32421723076`](https://github.com/danilo-jesus-unifil/Compactador/actions/runs/32421723076) registrou `test result: FAILED` para `directory_entries_are_emitted_in_sorted_order` e `supports_directory_and_multiple_selection_without_following_symlinks`, com erro de caminho `Projeto Rust\\a.txt`. Apesar disso, o shell padrão continuou até as etapas posteriores. A falha foi corrigida na v0.1.16.
 
 ## Validação local
 
 Após a correção, passaram `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, Clippy estrito locked, `cargo build --workspace --release --locked`, `git diff --check` e o E2E dos binários release.
 
-A suíte Linux possui 40 testes: 18 do core, 11 do container, 5 do compressor e 6 da integração Windows em memória. O CI Windows deverá confirmar a regressão `accepts_windows_native_relative_path` e a contagem final da plataforma.
+A suíte possui **40 testes** em Linux e Windows: 18 do core, 11 do container, 5 do compressor e 6 da integração Windows em memória. No Windows, o teste `accepts_windows_native_relative_path` foi executado; o teste Unix de symlink é substituído pelo teste Windows de sobreposição case-insensitive, mantendo a contagem total.
 
 ## Riscos e limitações
 
@@ -30,14 +30,16 @@ A validação visual do Explorer, instalação e remoção reais do Registry, Wi
 
 ## Compatibilidade e artefatos
 
-A tag `v0.1.16` acionará o [workflow Windows](https://github.com/danilo-jesus-unifil/Compactador/actions) em `windows-latest`. Os links dos artefatos e o checksum serão registrados somente após a conclusão real do CI corrigido.
+A tag `v0.1.16` acionou o [workflow Windows #32422248254](https://github.com/danilo-jesus-unifil/Compactador/actions/runs/32422248254) em `windows-latest`. O job `Build Windows release` terminou com **success**; a etapa `Validate` executou as suítes debug e release com o shell bloqueador e todos os testes passaram.
 
 [1]: https://github.com/danilo-jesus-unifil/Compactador/actions/runs/32421723076 "Workflow v0.1.15 com falha de testes descoberta no log"
 [2]: https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file "Microsoft Learn: Naming Files, Paths, and Namespaces"
 
-Sem artefatos Windows verificados, esta nota não afirma que a compilação MSVC ou o pacote final foram publicados.
+O pacote [`Compactador-v0.1.16-windows-x86_64.zip`](https://github.com/danilo-jesus-unifil/Compactador/releases/download/v0.1.16/Compactador-v0.1.16-windows-x86_64.zip) tem 338.693 bytes e contém `compactador-launcher.exe` e `compactador-compressor.exe`. O arquivo [`Compactador-v0.1.16-windows-x86_64.zip.sha256`](https://github.com/danilo-jesus-unifil/Compactador/releases/download/v0.1.16/Compactador-v0.1.16-windows-x86_64.zip.sha256) tem 106 bytes; a verificação local com `sha256sum -c` retornou **OK**.
+
+A compilação MSVC e o pacote final foram publicados somente após o workflow corrigido concluir com sucesso.
 
 ---
 
 **Versão:** `0.1.16`
-**Status local antes do CI:** validações Linux concluídas; workflow Windows corrigido e pendente.
+**Status:** release Windows publicado; workflow bloqueador e checksum verificados.

@@ -26,18 +26,24 @@ A política de colisão case-insensitive é conservadora para o comportamento pa
 
 A validação visual do Explorer, instalação e remoção reais do Registry, Windows 10/11, UNC, caminhos longos e seleções múltiplas extensas continuam dependentes de testes manuais Windows. O CLI não instala handler próprio de Ctrl+C. `cargo-audit` permanece indisponível no ambiente, e o workflow informa um aviso não bloqueante sobre o runtime Node.js 20 de actions atuais.
 
+## Resultado pós-CI e supersession
+
+O workflow [Windows release #32421723076](https://github.com/danilo-jesus-unifil/Compactador/actions/runs/32421723076) não deve ser tratado como validação funcional da v0.1.15. O log registrou falha em `directory_entries_are_emitted_in_sorted_order` e `supports_directory_and_multiple_selection_without_following_symlinks`, causada pela rejeição indevida de backslashes nativos no Windows. O job terminou verde porque o shell padrão não interrompeu a etapa após o código de saída não zero de um comando nativo.
+
+Os artefatos publicados naquela execução existem, mas são **superseded** e não devem ser usados como evidência de uma release Windows validada. A correção está na v0.1.16, cujo workflow usa `bash` com `set -euo pipefail` e trata falhas de validação como bloqueadoras.
+
 ## Compatibilidade, artefatos e referências
 
-A tag `v0.1.15` acionará o [workflow Windows](https://github.com/danilo-jesus-unifil/Compactador/actions) em `windows-latest`. O resultado do workflow, os links dos artefatos e o checksum serão registrados nesta seção somente após a conclusão real do CI e a verificação local do SHA-256.
+A tag `v0.1.15` acionou o [workflow Windows #32421723076](https://github.com/danilo-jesus-unifil/Compactador/actions/runs/32421723076) em `windows-latest`. Embora o job tenha terminado verde, o log registrou dois testes falhando; por isso os artefatos dessa execução são superseded e a versão não é evidência de uma release Windows funcionalmente validada.
 
 As regras de nomes reservados e caracteres proibidos foram conferidas na documentação oficial do Windows [1]. A distinção entre comportamento case-insensitive padrão e diretórios case-sensitive foi conferida na documentação oficial do Windows/WSL [2].
 
 [1]: https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file "Microsoft Learn: Naming Files, Paths, and Namespaces"
 [2]: https://learn.microsoft.com/en-us/windows/wsl/case-sensitivity "Microsoft Learn: Adjust case sensitivity"
 
-Sem artefatos Windows verificados, esta nota não afirma que a compilação MSVC ou o pacote final foram publicados.
+A v0.1.15 foi superseded pela v0.1.16 após a falha funcional descoberta no log do CI; consulte as notas da v0.1.16 para o resultado corrigido e verificado.
 
 ---
 
 **Versão:** `0.1.15`
-**Status local antes do CI:** validações Linux concluídas; workflow Windows pendente.
+**Status:** superseded; CI Windows registrou falhas funcionais e a validação foi corrigida na v0.1.16.
