@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.16] — 2026-08-20
+
+### Correção pós-CI Windows
+
+O CI Windows da v0.1.15 revelou dois testes falhando durante a validação: os paths internos gerados em Windows usavam backslash e eram rejeitados pela validação portátil, que havia sido escrita com uma premissa Linux. O fluxo foi corrigido para aceitar separadores nativos de `Path` no Windows e continuar rejeitando backslash como separador de nomes ZIP externos em ambientes onde ele não é nativo.
+
+A etapa `Validate` do workflow passou a usar `bash` com `set -euo pipefail`, impedindo que o PowerShell publique um artefato quando um comando nativo como `cargo test` retornar falha. O v0.1.15 não deve ser tratado como validado; esta versão só será registrada como concluída após novo CI Windows e checksum.
+
+### Validação local
+
+Foram aprovados `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, Clippy estrito locked, `cargo build --workspace --release --locked`, `git diff --check` e o E2E dos binários release. A suíte Linux permanece com 40 testes; o CI Windows deverá confirmar a contagem final da plataforma após o ajuste de paths.
+
+### Riscos conhecidos
+
+As janelas TOCTOU entre validar e abrir entradas, entre verificar e publicar extração e entre ler e remover valores do Registry permanecem como riscos residuais documentados. `cargo-audit` continua indisponível, e a validação visual do Explorer e do Registry real permanece dependente de testes manuais Windows.
+
 ## [0.1.15] — 2026-08-20
 
 ### Correções encontradas na investigação exploratória

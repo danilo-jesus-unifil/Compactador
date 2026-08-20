@@ -395,3 +395,15 @@ Foram aprovados `cargo fmt --all -- --check`, `cargo check --workspace --locked`
 
 [1]: https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file "Microsoft Learn: Naming Files, Paths, and Namespaces"
 [2]: https://learn.microsoft.com/en-us/windows/wsl/case-sensitivity "Microsoft Learn: Adjust case sensitivity"
+
+## Correção pós-CI v0.1.15 — falha de portabilidade e propagação de erro descoberta no Windows
+
+O workflow do v0.1.15 foi concluído como `success`, mas a inspeção do log real mostrou que a etapa `Validate` havia reportado `test result: FAILED` para dois testes do container: `directory_entries_are_emitted_in_sorted_order` e `supports_directory_and_multiple_selection_without_following_symlinks`. O motivo foi `InvalidInput("caminho armazenado deve ser relativo e portátil: Projeto Rust\\a.txt")`: no Windows, a validação tratava o backslash nativo de `Path` como se fosse sempre um separador externo proibido.
+
+A publicação indevida ocorreu porque a etapa multilinear usava o shell padrão PowerShell e não interrompia o job após o código de saída não zero de um executável nativo. Assim, os comandos seguintes continuaram e o workflow publicou artefatos apesar da falha. Esse comportamento é um defeito do workflow, não uma validação bem-sucedida do v0.1.15; os artefatos da versão devem ser considerados superseded pelo próximo patch.
+
+### Correção aplicada para v0.1.16
+
+`safe_relative_path` passou a aceitar separadores nativos internos quando compilado no Windows, mantendo a rejeição de backslash em hosts não Windows onde ele representa um nome ZIP não portátil. Foi adicionada a regressão Windows `accepts_windows_native_relative_path`. O workflow `.github/workflows/release.yml` passou a executar a etapa `Validate` com `bash` e `set -euo pipefail`, tornando qualquer falha de fmt, check, teste ou Clippy bloqueadora antes do build e da publicação.
+
+As correções exploratórias anteriores de ordenação determinística, colisões case-insensitive, sobreposição de paths Windows e dispositivos COM/LPT sobrescritos permanecem incluídas. A validação local após o ajuste passou com 40 testes no Linux, além do E2E; o novo CI Windows deve confirmar a regressão específica e a publicação segura.
