@@ -1,0 +1,51 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  windows-release:
+    name: Build Windows release
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable-x86_64-pc-windows-msvc
+
+      - name: Validate
+        run: |
+          cargo fmt --all -- --check
+          cargo check --workspace
+          cargo test --workspace
+          cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: Build release binaries
+        run: cargo build --workspace --release
+
+      - name: Package Windows binaries
+        shell: pwsh
+        run: |
+          $package = "Compactador-${{ github.ref_name }}-windows-x86_64"
+          New-Item -ItemType Directory -Force -Path $package | Out-Null
+          Copy-Item target/release/compactador-launcher.exe $package/
+          Copy-Item target/release/compactador-compressor.exe $package/
+          Copy-Item README.md, LICENSE, CHANGELOG.md $package/
+          Compress-Archive -Path $package -DestinationPath "$package.zip"
+          (Get-FileHash "$package.zip" -Algorithm SHA256).Hash.ToLower() + "  $package.zip" | Set-Content "$package.zip.sha256"
+
+      - name: Publish release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: false
+          files: |
+            Compactador-${{ github.ref_name }}-windows-x86_64.zip
+            Compactador-${{ github.ref_name }}-windows-x86_64.zip.sha256

@@ -54,7 +54,7 @@ O compressor também aceita uma saída explícita:
 cargo run -p compactador-compressor -- --compress high --output resultado.zip -- "Meu arquivo.txt" "dados.csv"
 ```
 
-No Windows, o launcher deve estar ao lado de `compactador-compressor.exe` para que a definição registrada aponte para o executável operacional correto.
+No Windows, o launcher deve estar ao lado de `compactador-compressor.exe` para que a definição registrada aponte para o executável operacional correto. Tags no formato `vMAJOR.MINOR.PATCH` acionam o workflow de release, que valida o workspace em Windows e empacota os dois executáveis com checksum.
 
 ## Princípios técnicos
 
