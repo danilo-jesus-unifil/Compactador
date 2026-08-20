@@ -10,9 +10,10 @@ Executar os testes em uma máquina de teste limpa, com uma conta de usuário sem
 | --- | --- | --- |
 | Estado inicial | `compactador-launcher.exe verify` | Relata `NotInstalled` ou estado equivalente |
 | Instalação | `compactador-launcher.exe install` | Cria somente entradas declaradas e confirma verificação |
+| Conflito | `install` com valor declarado divergente | Retorna `RepairRequired`, preserva o valor divergente e não sobrescreve |
 | Idempotência | Executar `install` novamente | Não duplica entradas nem altera recursos externos |
 | Menu | Reiniciar ou atualizar o Explorer e clicar com o botão direito | Exibe `Compactar` com cinco níveis |
-| Reparo | Remover ou alterar uma entrada declarada e executar `repair` | Restaura a definição e confirma o estado |
+| Reparo | Remover ou alterar uma entrada declarada e executar `repair` | Substitui a divergência explicitamente, tenta rollback em falha e confirma o estado |
 | Remoção | `compactador-launcher.exe remove` | Remove apenas os recursos do aplicativo e verifica o resultado |
 | Repetição | Executar `remove` novamente | Permanece removido sem falha destrutiva |
 

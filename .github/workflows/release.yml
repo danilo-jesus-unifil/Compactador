@@ -24,12 +24,12 @@ jobs:
       - name: Validate
         run: |
           cargo fmt --all -- --check
-          cargo check --workspace
-          cargo test --workspace
-          cargo clippy --workspace --all-targets --all-features -- -D warnings
+          cargo check --workspace --locked
+          cargo test --workspace --locked
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 
       - name: Build release binaries
-        run: cargo build --workspace --release
+        run: cargo build --workspace --release --locked
 
       - name: Package Windows binaries
         shell: pwsh

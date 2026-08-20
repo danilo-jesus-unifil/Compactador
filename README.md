@@ -36,9 +36,9 @@ Como o ambiente de desenvolvimento atual é Linux, o comportamento dependente do
 
 ```bash
 cargo fmt --all -- --check
-cargo check --workspace
-cargo test --workspace
-cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo check --workspace --locked
+cargo test --workspace --locked
+cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 ```
 
 Para executar os pontos de entrada localmente:

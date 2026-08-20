@@ -284,3 +284,35 @@ Passaram `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `carg
 A versão do workspace e dos quatro pacotes locais foi incrementada de `0.1.10` para `0.1.11`; `Cargo.lock`, `CHANGELOG.md`, as notas públicas e esta auditoria foram atualizados. A preparação foi commitada em `00319e6`, com a mensagem `chore: prepare release v0.1.11`; a tag anotada `v0.1.11` aponta para esse commit e está publicada em https://github.com/danilo-jesus-unifil/Compactador/releases/tag/v0.1.11.
 
 Permanecem como limitações a validação visual do Explorer, Registry real, Windows 10/11, UNC, caminhos longos e seleções múltiplas extensas em Windows; a ausência de handler próprio de Ctrl+C no CLI; a proteção TOCTOU não absoluta do diretório final de extração em Unix; a indisponibilidade de `cargo-audit`; e o caráter reservado, não ativo, de `CompressionRequest`, `OperationStatus` e `parallel`.
+
+## Nova passagem após v0.1.11 — conflitos de instalação e reprodutibilidade do workflow
+
+A nova auditoria foi iniciada sobre `main` limpo, com a release `v0.1.11` publicada e os artefatos Windows verificados. O prompt completo e `docs/BOAS_PRATICAS_GIT_E_PROJETO.md` foram lidos antes da inspeção. Foram reavaliados requisitos funcionais, CLI/UX, arquitetura, segurança, desempenho, compatibilidade Windows, modularização, dependências, documentação, Registry, workflow e regressões.
+
+### Achados confirmados
+
+A implementação já classificava valores divergentes como `RepairRequired` no método de inspeção e documentava esse estado, mas `install` ainda executava as escritas mesmo quando encontrava uma divergência. Isso podia substituir um valor criado por outro aplicativo ou por uma instalação diferente sem exigir uma ação de reparo explícita.
+
+O workflow Windows validava a workspace e fazia o build release, mas não passava `--locked` aos comandos Cargo. Como o projeto versiona `Cargo.lock` e usa essa opção em suas verificações locais, a ausência no CI reduzia a reprodutibilidade entre o ambiente local e o Windows.
+
+A segunda inspeção não encontrou novos placeholders operacionais, perda de Unicode, leitura integral de arquivos grandes, dependências duplicadas, traversal, publicação sem validação, remoção indevida de valores externos ou divergência adicional relevante entre código e documentação.
+
+### Correções implementadas
+
+`install` agora retorna um relatório `RepairRequired`, com `verified = false` e zero entradas alteradas, quando o estado contém valores divergentes. A mensagem orienta o uso de `repair`. O método `repair` chama diretamente o fluxo de aplicação e pode substituir a divergência somente após essa ação explícita. O rollback de melhor esforço da v0.1.11 foi preservado.
+
+O workflow `.github/workflows/release.yml` passou a exigir `--locked` em `cargo check`, `cargo test`, Clippy e `cargo build --release`. O README foi alinhado aos comandos reproduzíveis, a decisão de integração documenta a separação entre `install` e `repair`, e a checklist Windows inclui o cenário de conflito.
+
+### Cobertura adicionada
+
+Foi adicionado o teste `install_preserves_mismatched_values_until_explicit_repair`, que confirma que `install` preserva o valor divergente, retorna `RepairRequired` e que `repair` restaura a definição declarada. A regressão de falha intermediária e rollback continua passando.
+
+### Validação pós-correção
+
+Passaram `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`, `cargo build --workspace --release --locked`, `cargo tree -d`, `cargo metadata --locked --format-version 1`, `git diff --check` e o E2E dos binários release. A suíte passou a totalizar 38 testes: 18 do core, 9 do container, 5 do compressor e 6 da integração Windows em memória. O E2E confirmou ajuda, Unicode, espaços, arquivos e diretórios vazios, múltiplas entradas, cinco níveis, Store, extração, colisões, repetição, erros e launcher fora do Windows. `cargo-audit` permanece indisponível.
+
+### Preparação do release 0.1.12
+
+A versão do workspace e dos quatro pacotes locais foi incrementada de `0.1.11` para `0.1.12`; `Cargo.lock`, `CHANGELOG.md`, README, documentação de compatibilidade, decisão de integração e notas públicas foram atualizados. A validação Windows, a tag anotada e os artefatos só devem ser registrados após a conclusão do workflow em `windows-latest` e a verificação local do checksum.
+
+Permanecem como limitações a validação visual do Explorer, Registry real, Windows 10/11, UNC, caminhos longos e seleções múltiplas extensas em Windows; a ausência de handler próprio de Ctrl+C no CLI; a proteção TOCTOU não absoluta do diretório final de extração em Unix; a indisponibilidade de `cargo-audit`; e o caráter reservado, não ativo, de `CompressionRequest`, `OperationStatus` e `parallel`.

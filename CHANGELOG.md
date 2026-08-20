@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.12] — 2026-08-20
+
+### Instalação segura e reprodutibilidade
+
+A ação `install` agora preserva valores divergentes no Registry e retorna `RepairRequired`, sem sobrescrever recursos que podem pertencer a outro aplicativo. A ação explícita `repair` continua capaz de restaurar a definição declarada, usando rollback de melhor esforço quando uma escrita falha. O comportamento foi coberto por regressão de conflito e reparo.
+
+O workflow Windows passou a exigir `--locked` em check, testes, Clippy e build de release. O README foi alinhado aos mesmos comandos reproduzíveis, e a checklist Windows passou a documentar o resultado esperado para conflitos.
+
+### Validação
+
+Foram aprovados `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, Clippy estrito locked, `cargo build --workspace --release --locked`, `cargo tree -d`, `cargo metadata --locked`, `git diff --check` e o E2E dos binários release. A suíte passou a ter 38 testes: 18 do core, 9 do container, 5 do compressor e 6 da integração Windows em memória. `cargo-audit` permanece indisponível no ambiente.
+
+### Limitações conhecidas
+
+A validação visual do Explorer, instalação e remoção reais do Registry, Windows 10/11, UNC, caminhos longos e seleções múltiplas extensas continuam dependentes de testes manuais Windows. O CLI não instala handler próprio de Ctrl+C; o cancelamento exposto pelo pipeline permanece cooperativo pela API. O rollback do Registry é de melhor esforço quando o próprio backend falha durante a restauração. O host Linux não possui target MSVC local, e a proteção contra TOCTOU do diretório final de extração não é absoluta em Unix.
+
 ## [0.1.11] — 2026-08-20
 
 ### Segurança, rollback e cancelamento

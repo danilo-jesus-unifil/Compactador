@@ -1,0 +1,41 @@
+# Compactador v0.1.12
+
+## Resumo
+
+Esta versão registra uma nova auditoria completa após a v0.1.11. A revisão confrontou novamente funcionamento real, arquitetura, segurança, desempenho, compatibilidade Windows, organização, dependências, documentação, integração com o Explorer, workflow e regressões.
+
+## Instalação segura do Registry
+
+A ação `install` agora preserva valores divergentes e retorna `RepairRequired`, sem sobrescrever recursos que podem pertencer a outro aplicativo ou a uma instalação diferente. A substituição fica reservada à ação explícita `repair`, que restaura a definição declarada e mantém o rollback de melhor esforço implementado na v0.1.11.
+
+Foi adicionado o teste `install_preserves_mismatched_values_until_explicit_repair`, cobrindo preservação do valor divergente, estado `RepairRequired` e reparo explícito.
+
+## Reprodutibilidade do workflow
+
+O workflow Windows agora usa `--locked` em check, testes, Clippy e build de release, alinhando o CI à política local de reprodutibilidade baseada no `Cargo.lock`. O README apresenta os mesmos comandos, e a checklist de compatibilidade documenta o resultado esperado em caso de conflito no Registry.
+
+## Validação local
+
+Foram aprovados `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, Clippy estrito locked, `cargo build --workspace --release --locked`, `cargo tree -d`, `cargo metadata --locked --format-version 1`, `git diff --check` e o E2E dos binários release.
+
+A suíte possui 38 testes: 18 testes do core, 9 testes de integração do container, 5 testes do compressor e 6 testes da integração Windows em memória. O E2E confirmou ajuda, Unicode, espaços, arquivos e diretórios vazios, múltiplas entradas, cinco níveis, Store, extração, colisões, repetição, erros e launcher fora do Windows. `cargo-audit` permanece indisponível no ambiente.
+
+## Compatibilidade, artefatos e limitações
+
+A tag `v0.1.12` acionará o [workflow Windows](https://github.com/danilo-jesus-unifil/Compactador/actions) em `windows-latest`. O resultado do workflow, os links dos artefatos e o checksum serão registrados nesta seção somente após a conclusão real do CI e a verificação local do SHA-256.
+
+A validação visual do Explorer, instalação e remoção reais do Registry, Windows 10/11, UNC, caminhos longos e seleções múltiplas extensas continuam dependentes de testes manuais Windows. O CLI não instala handler próprio de Ctrl+C; o cancelamento do pipeline é cooperativo pela API. O rollback do Registry é de melhor esforço quando o próprio backend falha durante a restauração. O host Linux não possui target MSVC local, e a proteção contra TOCTOU do diretório final de extração não é absoluta em Unix.
+
+Os contratos públicos reservados continuam não sendo anunciados como funcionalidades ativas: não há IPC baseado em `CompressionRequest`, store global de `OperationStatus` nem paralelismo de arquivos independentes nesta versão.
+
+## Referências
+
+[1]: https://github.com/danilo-jesus-unifil/Compactador/actions "GitHub Actions do Compactador"
+[2]: https://github.com/danilo-jesus-unifil/Compactador "Repositório do Compactador"
+
+Sem artefatos Windows verificados, esta nota não afirma que a compilação MSVC ou o pacote final foram publicados.
+
+---
+
+**Versão:** `0.1.12`
+**Status local antes do CI:** validações Linux concluídas; workflow Windows pendente.

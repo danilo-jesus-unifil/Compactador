@@ -4,7 +4,7 @@
 
 A primeira implementação utilizará **verbos estáticos e menu em cascata por Registro**, sem uma Shell Extension COM carregada no processo do Explorer. A escolha atende ao objetivo de manter o caminho de construção do menu pequeno e reduzir o risco de instabilidade no Explorer. A documentação da Microsoft informa que o Windows 7 e posteriores suportam menus em cascata estáticos e recomenda soluções COM apenas quando os métodos estáticos forem insuficientes [1] [2].
 
-O registro será feito no escopo do usuário, em `HKEY_CURRENT_USER\Software\Classes`, que participa da visão combinada de `HKEY_CLASSES_ROOT` e não exige elevação para a instalação do conjunto de verbos quando esse escopo é suficiente [1]. O launcher manterá a definição centralizada das entradas criadas e verificará cada entrada após escrever ou remover.
+O registro será feito no escopo do usuário, em `HKEY_CURRENT_USER\Software\Classes`, que participa da visão combinada de `HKEY_CLASSES_ROOT` e não exige elevação para a instalação do conjunto de verbos quando esse escopo é suficiente [1]. O launcher manterá a definição centralizada das entradas criadas e verificará cada entrada após escrever ou remover. A ação `install` não sobrescreverá valores divergentes: ela retornará `RepairRequired`; a substituição será reservada à ação explícita `repair`, com rollback de melhor esforço se uma escrita falhar.
 
 ## Estrutura escolhida
 
@@ -18,7 +18,7 @@ O menu principal terá um verbo exclusivo do aplicativo em `*\\shell` e `Directo
 | Comando | Executável externo | Mantém compressão fora do processo do Explorer |
 | Escopo inicial | `HKCU\\Software\\Classes` | Instalação por usuário e menor privilégio |
 | Alvos de seleção | `*` e `Directory` | Abrange arquivos e pastas selecionados sem depender de uma única associação |
-| Fallback | Diagnóstico e estado `RepairRequired` | Não apagar recursos fora do escopo do aplicativo |
+| Fallback | Diagnóstico e estado `RepairRequired` | `install` preserva divergências; `repair` substitui somente após ação explícita |
 
 ## Seleção múltipla
 
