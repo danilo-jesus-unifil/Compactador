@@ -10,13 +10,13 @@ O projeto usa **ZIP padrão** como container de primeira versão e **Deflate** c
 | Algoritmo | Aplicar Deflate em streaming |
 | Container | Armazenar nomes, metadados e entradas múltiplas |
 | Integridade | Validar CRC antes de concluir ou extrair |
-| Filesystem | Escrever temporário, sincronizar, validar e renomear |
+| Filesystem | Escrever temporário, sincronizar, validar e publicar sem sobrescrita |
 
 A crate `zip` é usada com os recursos mínimos necessários para Deflate, sem habilitar funcionalidades não utilizadas. O manifesto mantém `Cargo.lock` versionado para reprodutibilidade do binário.
 
 ## Pipeline
 
-A operação valida a seleção, analisa amostras pequenas, escolhe uma estratégia, grava em arquivo temporário, finaliza o ZIP, sincroniza o arquivo, valida todas as entradas, e somente então faz a renomeação para o destino final. Uma falha remove o temporário conhecido.
+A operação valida a seleção, analisa amostras pequenas, escolhe uma estratégia, grava em arquivo temporário, finaliza o ZIP, sincroniza o arquivo, valida todas as entradas, e somente então publica o arquivo no destino por hard link no mesmo diretório, sem substituir uma saída criada concorrentemente. Uma falha remove o temporário conhecido.
 
 ## Segurança de extração
 

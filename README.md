@@ -64,7 +64,7 @@ No Windows, o launcher deve estar ao lado de `compactador-compressor.exe` para q
 
 ## Princípios técnicos
 
-Toda entrada externa é tratada como não confiável. Caminhos armazenados no ZIP são validados como relativos antes da extração; arquivos são escritos em temporários e renomeados apenas após validação de integridade. O domínio não conhece o Registro, e o carregamento do menu não inicia análise ou compactação.
+Toda entrada externa é tratada como não confiável. Caminhos armazenados no ZIP são validados como relativos antes da extração; arquivos são escritos em temporários e publicados sem sobrescrita apenas após validação de integridade. O domínio não conhece o Registro, e o carregamento do menu não inicia análise ou compactação.
 
 ## Licença
 

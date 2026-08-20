@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.1.6] — 2026-08-20
+
+### Auditoria completa, segurança e consistência
+
+A integração do Registro passou a remover somente valores que ainda correspondem à definição do aplicativo. O valor padrão dos comandos não é mais interpretado como uma subchave inteira; após a remoção, chaves próprias vazias são podadas sem apagar valores ou subchaves de terceiros. Divergências agora retornam `RepairRequired` e são preservadas para diagnóstico e reparo.
+
+O container rejeita diretórios ZIP duplicados, nomes com NUL ou nomes não Unicode/portáveis, publica arquivos sem sobrescrita concorrente e cria staging de extração exclusivamente. O resumo passa a expor o offset real da entrada ZIP, e erros de I/O, formato inválido e recursos não suportados preservam categorias distintas.
+
+A análise rejeita links, reparse points e tipos especiais na raiz e durante a travessia; perfis amostrados não são classificados como totalmente comprimidos; somas são saturantes; e o fluxo de progresso emite `Validando` e `Finalizando` na ordem real. Nomes automáticos preservam Unicode com `OsString`, o launcher rejeita argumentos extras e o cancelamento durante streaming confirma a remoção do temporário sem publicar saída parcial.
+
+### Validação
+
+Foram aprovados `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test --workspace`, `cargo test --workspace --release`, `cargo clippy --workspace --all-targets --all-features -- -D warnings`, `cargo build --workspace --release`, `cargo tree -d`, `cargo metadata --locked` e `git diff --check`. O ciclo final totaliza 30 testes e passou em debug e release. O E2E dos binários release confirmou Unicode, espaços, arquivo e diretório vazios, múltiplas entradas, cinco níveis, Store, extração byte a byte, destinos existentes, repetição, nomeação automática, erros e launcher fora do Windows.
+
+### Limitações conhecidas
+
+O backend Windows específico desta passagem será validado pelo workflow `windows-latest` após a tag; o host Linux não possui `rustup` nem target MSVC instalado. A validação visual do Explorer, Windows 10/11, seleção múltipla extensa, UNC e caminhos longos continua manual. A proteção contra TOCTOU do diretório final de extração não é absoluta em Unix, embora arquivos individuais usem publicação sem sobrescrita. `cargo-audit` não está instalado no ambiente.
+
 ## [0.1.5] — 2026-08-20
 
 ### Correções e hardening

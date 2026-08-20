@@ -101,3 +101,55 @@ A integração efetiva com o Registro e a aparência do menu do Explorer não fo
 ### Decisão de release
 
 Com os gates locais aprovados e a documentação atualizada, a versão compartilhada do workspace foi incrementada para `0.1.5`. A tag anotada `v0.1.5` acionou o workflow `windows-latest`, que concluiu com sucesso as etapas de validação, build, empacotamento e publicação. A release contém `Compactador-v0.1.5-windows-x86_64.zip` e `Compactador-v0.1.5-windows-x86_64.zip.sha256`. O workflow emitiu apenas o aviso operacional de depreciação do Node.js 20 nas actions usadas, sem falha de job.
+
+## Nova auditoria completa — prompt anexado
+
+A revisão completa foi iniciada sobre o branch `main` limpo e sincronizado, após a publicação de `v0.1.5`. O prompt anexado foi lido integralmente, incluindo os critérios de auditoria funcional, padrões de implementação gerada por IA, arquitetura, segurança, desempenho, compatibilidade, UX/CLI, robustez, fallbacks, dependências, verificação real, regressão, segunda revisão e release. A inspeção não tratou afirmações históricas como prova: cada comportamento relevante foi localizado no código, exercitado em testes ou classificado como limitação.
+
+### Achados e correções
+
+| Área | Achado confirmado | Correção aplicada |
+| --- | --- | --- |
+| Registry | `value_name: None` era tratado pelo backend Windows como subchave inteira, e `remove` podia apagar um valor divergente do aplicativo. | O valor padrão é apagado com `delete_value("")`; o manager só remove valores que coincidem com a definição; chaves próprias vazias são podadas sem `delete_subkey_all`. |
+| Estado | `RepairRequired` existia no modelo e na decisão arquitetural, mas nunca era retornado. | Valores divergentes agora resultam em `InstallationState::RepairRequired`; testes cobrem a preservação do valor estrangeiro. |
+| Extração | Diretórios duplicados podiam passar pela extração, embora a validação rejeitasse duplicidades. | O caminho de extração mantém conjunto de nomes e rejeita qualquer duplicidade, inclusive diretórios. |
+| Links e tipos | A análise seguia a raiz linkada e ignorava alguns links/tipos especiais dentro da árvore, enquanto a compactação os recusava. | A análise usa `symlink_metadata`, rejeita raiz, filhos, reparse points e tipos especiais; o container mantém a mesma política. |
+| Amostragem | Seleções grandes podiam ser marcadas como totalmente comprimidas com base apenas nos primeiros arquivos. | A estimativa usa o tamanho analisado e perfis amostrados nunca afirmam que todo o conjunto já é comprimido. |
+| Progresso | `Validando` era emitido antes da compactação real, e operações vazias não tinham conclusão visual coerente. | Callbacks de validação/finalização foram conectados ao container; `Concluído` de uma operação de zero bytes mostra 100%. |
+| Publicação | `rename` podia substituir uma saída criada entre a checagem e a publicação. | ZIP e arquivos extraídos usam hard link no mesmo diretório e preservam a saída concorrente; staging usa criação exclusiva. |
+| Caminhos | `to_string_lossy` era usado na normalização de nomes, e NUL não era rejeitado antecipadamente. | Nomes portáveis exigem Unicode válido, não contêm NUL, separadores perigosos ou componentes inseguros; nomes automáticos usam `OsString`. |
+| Diagnóstico | Erros ZIP de I/O, formato e suporte eram convertidos para a mesma categoria. | O mapeamento preserva `CoreError::Io`, `InvalidInput` e `Unsupported`. |
+| CLI | O launcher aceitava argumentos extras silenciosamente. | Argumentos extras e o primeiro argumento não Unicode resultam em código 2. |
+| Metadados | `ArchiveEntry::data_offset` era sempre zero. | O resumo usa `ZipFile::data_start()` depois da leitura da entrada, com testes para compressão e extração. |
+| Cancelamento | Só havia teste de cancelamento antes do trabalho. | Teste durante streaming confirma que o temporário é descartado e a saída final não é publicada. |
+
+### Verificação funcional real
+
+Os binários release foram executados em um E2E dedicado. Foram confirmados `--help` e `-h`, arquivos e diretórios com Unicode e espaços, arquivo vazio, diretório vazio, diretório recursivo, seleção múltipla, todos os cinco níveis, escolha efetiva de Store para ZIP, extração com comparação byte a byte, destino existente preservado, nomeação automática repetida, entrada inexistente rejeitada, argumentos extras rejeitados e código 1 do launcher em Linux. A integração visual do Explorer não foi simulada.
+
+### Segunda auditoria independente e gates
+
+Após as correções, uma segunda inspeção percorreu novamente os módulos, as APIs públicas, os padrões de risco, as conversões de caminho, o Registro, o container, o compressor, o launcher, as dependências, o README, as decisões arquiteturais, a checklist Windows e o workflow. Não foram encontrados novos problemas relevantes no código portátil.
+
+| Verificação | Resultado |
+| --- | --- |
+| `cargo fmt --all -- --check` | Aprovado |
+| `cargo check --workspace` | Aprovado |
+| `cargo test --workspace` | Aprovado; 31 testes |
+| `cargo test --workspace --release` | Aprovado; 31 testes |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | Aprovado, sem warnings |
+| `cargo build --workspace --release` | Aprovado |
+| `cargo tree -d` | Nenhuma duplicação para imprimir |
+| `cargo metadata --locked --no-deps --format-version 1` | Aprovado |
+| `git diff --check` | Aprovado |
+| E2E dos binários release | Aprovado |
+| `cargo-audit` | Não executado; ferramenta indisponível |
+| Target MSVC local | Não disponível; host não possui `rustup` nem target instalado |
+
+### Limitações mantidas
+
+O backend `winreg` específico desta passagem será validado pelo workflow Windows após a tag. Permanecem pendentes a aparência do menu, reinicialização do Explorer, Windows 10/11 reais, seleções múltiplas extensas, UNC, caminhos longos e permissões reais. A proteção contra TOCTOU do diretório final de extração não é absoluta em Unix; arquivos individuais e o ZIP usam publicação sem sobrescrita. O cancelamento cooperativo está disponível na API e testado durante streaming, mas o CLI não instala handler próprio de Ctrl+C. O protocolo `launcher_protocol` e os estados operacionais públicos sem consumidores são contratos passivos reservados à evolução da ponte de shell; não são anunciados como funcionalidades ativas.
+
+### Preparação do release
+
+O código desta passagem foi commitado em `2ff0b03` com a mensagem `fix: complete audit pass 5 — safety and contracts`. A versão do workspace foi incrementada de `0.1.5` para `0.1.6`; as notas públicas e o changelog foram atualizados. O lockfile será regenerado pela validação final, e a tag anotada `v0.1.6` somente será criada depois de o working tree ficar limpo e todos os gates permanecerem aprovados.
