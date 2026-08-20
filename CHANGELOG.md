@@ -12,11 +12,11 @@ A análise rejeita links, reparse points e tipos especiais na raiz e durante a t
 
 ### Validação
 
-Foram aprovados `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test --workspace`, `cargo test --workspace --release`, `cargo clippy --workspace --all-targets --all-features -- -D warnings`, `cargo build --workspace --release`, `cargo tree -d`, `cargo metadata --locked` e `git diff --check`. O ciclo final totaliza 30 testes e passou em debug e release. O E2E dos binários release confirmou Unicode, espaços, arquivo e diretório vazios, múltiplas entradas, cinco níveis, Store, extração byte a byte, destinos existentes, repetição, nomeação automática, erros e launcher fora do Windows.
+Foram aprovados `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test --workspace`, `cargo test --workspace --release`, `cargo clippy --workspace --all-targets --all-features -- -D warnings`, `cargo build --workspace --release`, `cargo tree -d`, `cargo metadata --locked` e `git diff --check`. O ciclo final totaliza 31 testes e passou em debug e release. O E2E dos binários release confirmou Unicode, espaços, arquivo e diretório vazios, múltiplas entradas, cinco níveis, Store, extração byte a byte, destinos existentes, repetição, nomeação automática, erros e launcher fora do Windows.
 
 ### Limitações conhecidas
 
-O backend Windows específico desta passagem será validado pelo workflow `windows-latest` após a tag; o host Linux não possui `rustup` nem target MSVC instalado. A validação visual do Explorer, Windows 10/11, seleção múltipla extensa, UNC e caminhos longos continua manual. A proteção contra TOCTOU do diretório final de extração não é absoluta em Unix, embora arquivos individuais usem publicação sem sobrescrita. `cargo-audit` não está instalado no ambiente.
+O workflow Windows específico desta passagem terminou com sucesso após a tag, compilando e empacotando os executáveis MSVC. O host Linux não possui `rustup` nem target MSVC instalado. A validação visual do Explorer, Windows 10/11, seleção múltipla extensa, UNC e caminhos longos continua manual. A proteção contra TOCTOU do diretório final de extração não é absoluta em Unix, embora arquivos individuais usem publicação sem sobrescrita. `cargo-audit` não está instalado no ambiente.
 
 ## [0.1.5] — 2026-08-20
 

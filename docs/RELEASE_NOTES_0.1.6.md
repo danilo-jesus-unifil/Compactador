@@ -25,7 +25,7 @@ O E2E dos binários release confirmou `--help`/`-h`, compressão de arquivo e di
 
 ## Artefatos e compatibilidade
 
-A tag anotada `v0.1.6` acionará o workflow de release em `windows-latest`. O workflow deverá validar o backend `winreg`, compilar os executáveis MSVC, empacotar `compactador-launcher.exe` e `compactador-compressor.exe` e publicar o ZIP acompanhado do checksum SHA-256. O host de desenvolvimento é Linux, não possui `rustup` nem target MSVC instalado, e não substitui a validação visual do Explorer.
+A tag anotada `v0.1.6` acionou o workflow [Windows release](https://github.com/danilo-jesus-unifil/Compactador/actions/runs/32413648267), que terminou com sucesso em `windows-latest`, validou o backend `winreg`, compilou os executáveis MSVC e publicou os artefatos. O pacote é [`Compactador-v0.1.6-windows-x86_64.zip`](https://github.com/danilo-jesus-unifil/Compactador/releases/download/v0.1.6/Compactador-v0.1.6-windows-x86_64.zip), acompanhado de [`Compactador-v0.1.6-windows-x86_64.zip.sha256`](https://github.com/danilo-jesus-unifil/Compactador/releases/download/v0.1.6/Compactador-v0.1.6-windows-x86_64.zip.sha256). O host de desenvolvimento é Linux e não substitui a validação visual do Explorer.
 
 ## Limitações conhecidas
 
