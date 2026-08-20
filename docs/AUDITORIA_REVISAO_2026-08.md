@@ -153,3 +153,26 @@ O workflow [Windows release](https://github.com/danilo-jesus-unifil/Compactador/
 ### Preparação do release
 
 O código desta passagem foi commitado em `2ff0b03` com a mensagem `fix: complete audit pass 5 — safety and contracts`. A preparação do release foi commitada em `43d7e4b` com a mensagem `chore: prepare release v0.1.6`; a versão do workspace foi incrementada de `0.1.5` para `0.1.6`, o `Cargo.lock` foi regenerado e as notas públicas e o changelog foram atualizados. A tag anotada `v0.1.6` aponta para `43d7e4b`, está publicada no GitHub e a release está disponível em https://github.com/danilo-jesus-unifil/Compactador/releases/tag/v0.1.6. Após o workflow Windows, esta documentação foi sincronizada em um commit posterior para registrar os artefatos efetivamente publicados.
+
+## Nova passagem após v0.1.6 — contratos e consistência
+
+A revisão seguinte foi iniciada sobre `main` limpo, com `v0.1.6` publicado e o workflow Windows anterior concluído com sucesso. O prompt completo e as boas práticas internas foram lidos antes da inspeção. Foram novamente confrontados os requisitos funcionais, CLI/UX, arquitetura, segurança, desempenho, compatibilidade, modularização, dependências, regressão, documentação e limitações previamente registradas.
+
+### Achados confirmados
+
+| Área | Achado | Ação |
+| --- | --- | --- |
+| Heurística | `available_memory_bytes` alterava somente a justificativa de nível Máxima, embora o algoritmo e o pipeline permanecessem iguais; isso aparentava tuning de recursos sem efeito operacional. | Removida a condição. O seletor é determinístico e o pipeline continua single-threaded, com `parallel = false`. |
+| API pública | `ResourceProfile`, `OperationStatus` e `CompressionStrategy.parallel` poderiam sugerir recursos já implementados. | Comentários documentam o alcance real: hints de recursos e status são contratos reservados; não há workers, store global ou paralelismo atual. |
+| Protocolo | `launcher_protocol` era exportado, mas não era IPC nem era consumido pelo CLI. | O módulo agora informa explicitamente que é contrato passivo para futura ponte; o CLI atual usa argumentos diretamente. |
+| README | A lista de recursos ainda dizia “renomeação final” e repetia a política de não sobrescrita. | Texto atualizado para “publicação sem sobrescrita”, sem duplicação. |
+
+Nenhuma funcionalidade correta foi removida. A única mudança comportamental é retirar uma justificativa enganosa que não correspondia a uma diferença real do pipeline. Foi adicionado o teste `resource_hints_do_not_fake_parallel_or_memory_tuning`, comparando perfis de recursos baixo e alto.
+
+### Regressão e gates
+
+Após as alterações, passaram `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`, `cargo build --workspace --release --locked`, `cargo tree -d`, `cargo metadata --locked`, `git diff --check` e o E2E. A suíte conta 32 testes: 15 do core, 9 do container, 4 do compressor e 4 da integração Windows em memória. `cargo-audit` permanece indisponível.
+
+### Preparação do release 0.1.7
+
+As correções de código foram separadas no commit `cca6815`, com a mensagem `fix: clarify resource and protocol contracts`. A versão do workspace foi incrementada de `0.1.6` para `0.1.7`; changelog e notas públicas foram atualizados. A tag anotada e os artefatos somente serão publicados após o gate final, working tree limpo e revisão do diff.

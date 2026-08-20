@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.1.7] — 2026-08-20
+
+### Auditoria de contratos e consistência
+
+A nova revisão removeu da heurística uma condição que alterava apenas a justificativa conforme memória disponível, sem alterar o algoritmo efetivo. O seletor agora mantém comportamento determinístico e documenta que o pipeline permanece single-threaded e sem tuning de workers nesta versão.
+
+Os campos públicos de recursos, paralelismo, estado operacional e protocolo launcher/compressor foram documentados com seus limites reais. O `launcher_protocol` continua disponível como contrato passivo para evolução futura; o CLI atual usa argumentos diretamente e não há IPC ou serialização desse tipo em produção.
+
+O README foi alinhado à publicação sem sobrescrita e à ausência de paralelismo operacional. Foi acrescentada regressão que confirma que perfis de recursos diferentes não simulam ganho ou comportamento de paralelismo.
+
+### Validação
+
+A nova passagem aprovou `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, Clippy estrito locked, build release locked, `cargo tree -d`, `cargo metadata --locked`, `git diff --check` e E2E. A suíte possui 32 testes: 15 do core, 9 do container, 4 do compressor e 4 da integração Windows em memória. `cargo-audit` não estava disponível.
+
+### Limitações conhecidas
+
+A validação visual do Explorer, instalação e remoção reais do Registry, Windows 10/11, UNC, caminhos longos e seleções múltiplas extensas permanecem dependentes de testes manuais Windows. O CLI ainda não instala handler próprio de Ctrl+C; o cancelamento testado é cooperativo pela API. O host Linux não possui target MSVC local.
+
 ## [0.1.6] — 2026-08-20
 
 ### Auditoria completa, segurança e consistência

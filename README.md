@@ -18,7 +18,7 @@ As regras de trabalho estão em [`docs/BOAS_PRATICAS_GIT_E_PROJETO.md`](docs/BOA
 
 ## Recursos implementados
 
-A base atual já possui seleção de um ou vários arquivos, diretórios recursivos sem seguir links simbólicos ou reparse points, suporte a Unicode e espaços, análise amostral limitada, classificação por extensão e conteúdo, seletor heurístico explicável, níveis Rápida/Baixa/Normal/Alta/Máxima, escolha efetiva entre Deflate e armazenamento direto para conteúdo já comprimido, container ZIP padrão, CRC, validação, extração segura com staging, rejeição de traversal, política de não sobrescrita, escrita temporária, renomeação final, progresso incremental por bytes e cancelamento cooperativo.
+A base atual já possui seleção de um ou vários arquivos, diretórios recursivos sem seguir links simbólicos ou reparse points, suporte a Unicode e espaços, análise amostral limitada, classificação por extensão e conteúdo, seletor heurístico explicável, níveis Rápida/Baixa/Normal/Alta/Máxima, escolha efetiva entre Deflate e armazenamento direto para conteúdo já comprimido, container ZIP padrão, CRC, validação, extração segura com staging, rejeição de traversal, escrita temporária, publicação sem sobrescrita, progresso incremental por bytes e cancelamento cooperativo.
 
 O Launcher possui fluxo explícito de detecção, instalação idempotente, verificação, reparo e remoção restrita às entradas declaradas pelo próprio aplicativo. A integração foi modelada para verbos estáticos e menu em cascata no escopo do usuário, sem carregar uma extensão COM no Explorer.
 
