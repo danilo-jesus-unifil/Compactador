@@ -36,7 +36,7 @@ pub fn validate_inputs(paths: &[PathBuf]) -> CoreResult<Vec<InputEntry>> {
 }
 
 #[cfg(windows)]
-fn is_link_or_reparse_point(metadata: &Metadata) -> bool {
+pub fn is_link_or_reparse_point(metadata: &Metadata) -> bool {
     use std::os::windows::fs::MetadataExt;
     const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0400;
     metadata.file_type().is_symlink()
@@ -44,7 +44,7 @@ fn is_link_or_reparse_point(metadata: &Metadata) -> bool {
 }
 
 #[cfg(not(windows))]
-fn is_link_or_reparse_point(metadata: &Metadata) -> bool {
+pub fn is_link_or_reparse_point(metadata: &Metadata) -> bool {
     metadata.file_type().is_symlink()
 }
 

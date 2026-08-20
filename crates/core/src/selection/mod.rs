@@ -10,6 +10,7 @@ use std::path::PathBuf;
 pub struct InputProfile {
     pub total_size_bytes: u64,
     pub file_count: u64,
+    pub directory_count: u64,
     pub has_compressed_content: bool,
     pub dominant_category: Option<FileClassification>,
 }
@@ -88,9 +89,9 @@ impl StrategySelector for HeuristicStrategySelector {
         level: CompressionLevel,
         resources: &ResourceProfile,
     ) -> CoreResult<CompressionStrategy> {
-        if profile.file_count == 0 {
+        if profile.file_count == 0 && profile.directory_count == 0 {
             return Err(CoreError::InvalidInput(
-                "o seletor recebeu uma seleção sem arquivos".to_owned(),
+                "o seletor recebeu uma seleção sem arquivos ou diretórios".to_owned(),
             ));
         }
         let category = profile
@@ -200,8 +201,9 @@ mod tests {
     fn selects_conservative_strategy_for_already_compressed_content() {
         let selector = HeuristicStrategySelector;
         let profile = InputProfile {
-            total_size_bytes: 1024,
+            total_size_bytes: 1,
             file_count: 1,
+            directory_count: 0,
             has_compressed_content: true,
             dominant_category: Some(FileClassification::Archive),
         };

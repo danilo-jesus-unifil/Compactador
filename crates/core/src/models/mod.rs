@@ -31,6 +31,16 @@ impl CompressionLevel {
         }
     }
 
+    pub const fn cli_name(self) -> &'static str {
+        match self {
+            Self::Fast => "fast",
+            Self::Low => "low",
+            Self::Normal => "normal",
+            Self::High => "high",
+            Self::Maximum => "maximum",
+        }
+    }
+
     pub const fn numeric_hint(self) -> u8 {
         match self {
             Self::Fast => 1,

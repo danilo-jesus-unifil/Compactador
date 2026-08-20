@@ -93,6 +93,7 @@ pub fn run_operation(
     let profile = InputProfile {
         total_size_bytes: analysis.total_size_bytes,
         file_count: analysis.files,
+        directory_count: analysis.directories,
         has_compressed_content: analysis.already_compressed,
         dominant_category: analysis.dominant_category,
     };
@@ -271,6 +272,43 @@ mod tests {
             .expect("lock")
             .iter()
             .any(|event| event.phase == OperationPhase::Compressing && event.completed_bytes > 0));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn compresses_empty_directory() {
+        let root = std::env::temp_dir().join(format!(
+            "compactador-empty-dir-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).expect("create root");
+        let input = root.join("pasta vazia");
+        let output = root.join("saida.zip");
+        fs::create_dir(&input).expect("create empty directory");
+        let request = SelectionRequest::parse([
+            OsString::from("--compress"),
+            OsString::from("normal"),
+            OsString::from("--"),
+            input.as_os_str().to_os_string(),
+        ])
+        .expect("request");
+        let result = run_operation(
+            &request,
+            output.clone(),
+            ResourceProfile::default(),
+            &CancellationToken::default(),
+            &NullReporter,
+        )
+        .expect("empty directory operation");
+        assert!(output.exists());
+        assert!(result
+            .summary
+            .entries
+            .iter()
+            .any(|entry| entry.is_directory));
         let _ = fs::remove_dir_all(root);
     }
 

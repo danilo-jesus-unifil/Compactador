@@ -1,3 +1,4 @@
+use crate::filesystem::is_link_or_reparse_point;
 use crate::models::{Classification, Confidence, FileClassification, InputEntry, InputKind};
 use std::collections::HashSet;
 use std::fs::File;
@@ -195,7 +196,7 @@ fn analyze_directory(path: &Path, accumulator: &mut AnalysisAccumulator) -> io::
             let child = child?;
             let child_path = child.path();
             let metadata = std::fs::symlink_metadata(&child_path)?;
-            if metadata.file_type().is_symlink() {
+            if is_link_or_reparse_point(&metadata) {
                 accumulator.sampled = true;
             } else if metadata.is_dir() {
                 pending.push(child_path);

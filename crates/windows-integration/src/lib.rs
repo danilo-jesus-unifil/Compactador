@@ -43,7 +43,7 @@ pub fn expected_definition(executable_path: impl AsRef<Path>) -> InstallationDef
         let command = format!(
             "\"{}\" --compress {} -- %*",
             executable_path.display(),
-            item.level.numeric_hint()
+            item.level.cli_name()
         );
         entries.push(RegistryEntry {
             hive: RegistryHive::CurrentUser,
@@ -74,11 +74,35 @@ pub fn not_supported_report(message: impl Into<String>) -> InstallationReport {
     }
 }
 
-pub fn default_manager(executable_path: impl AsRef<Path>) -> InstallationReport {
-    not_supported_report(format!(
-        "backend do Registro disponível apenas no Windows; executável esperado: {}",
-        executable_path.as_ref().display()
-    ))
-}
-
 pub type InstallationManagerFor<B> = InstallationManager<B>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use compactador_core::models::CompressionLevel;
+    use std::path::Path;
+
+    #[test]
+    fn registered_commands_use_cli_level_names() {
+        let definition = expected_definition(Path::new(
+            "C:\\Program Files\\Compactador\\compactador-compressor.exe",
+        ));
+        let commands = definition
+            .entries
+            .iter()
+            .filter(|entry| entry.key.ends_with("\\command") && entry.value_name.is_none())
+            .map(|entry| entry.value.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(commands.len(), CompressionLevel::ALL.len());
+        for level in CompressionLevel::ALL {
+            let expected = format!(
+                "\"C:\\Program Files\\Compactador\\compactador-compressor.exe\" --compress {} -- %*",
+                level.cli_name()
+            );
+            assert!(
+                commands.contains(&expected.as_str()),
+                "missing command: {expected}"
+            );
+        }
+    }
+}

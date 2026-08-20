@@ -1,5 +1,5 @@
 use crate::error::{CoreError, CoreResult};
-use crate::filesystem::validate_inputs;
+use crate::filesystem::{is_link_or_reparse_point, validate_inputs};
 use crate::models::{CompressionLevel, InputEntry, InputKind};
 use crate::security::safe_relative_path;
 use crc32fast::Hasher;
@@ -200,6 +200,13 @@ fn append_directory<W: Write + Seek>(
     if is_cancelled() {
         return Err(CoreError::Cancelled);
     }
+    let metadata = fs::symlink_metadata(directory)?;
+    if is_link_or_reparse_point(&metadata) {
+        return Err(CoreError::Unsupported(format!(
+            "links simbólicos ou reparse points não são seguidos: {}",
+            directory.display()
+        )));
+    }
     let key = format!("{}/", normalized_name(relative));
     if !names.insert(key.clone()) {
         return Err(CoreError::InvalidInput(format!(
@@ -212,9 +219,9 @@ fn append_directory<W: Write + Seek>(
         let child_path = child.path();
         let metadata = fs::symlink_metadata(&child_path)?;
         let child_relative = relative.join(child.file_name());
-        if metadata.file_type().is_symlink() {
+        if is_link_or_reparse_point(&metadata) {
             return Err(CoreError::Unsupported(format!(
-                "links simbólicos não são seguidos: {}",
+                "links simbólicos ou reparse points não são seguidos: {}",
                 child_path.display()
             )));
         }
@@ -424,6 +431,7 @@ fn validate_entry(entry: &mut ZipFile<'_>) -> CoreResult<(u64, u64, u32)> {
                 "tamanho expandido excede o limite de segurança".to_owned(),
             ));
         }
+        ensure_expansion_ratio(entry.name(), total, entry.compressed_size())?;
     }
     let checksum = hasher.finalize();
     if checksum != entry.crc32() {
@@ -433,12 +441,7 @@ fn validate_entry(entry: &mut ZipFile<'_>) -> CoreResult<(u64, u64, u32)> {
         )));
     }
     let compressed_size = entry.compressed_size();
-    if compressed_size > 0 && total > compressed_size.saturating_mul(MAX_COMPRESSION_RATIO) {
-        return Err(CoreError::InvalidInput(format!(
-            "razão de expansão excede o limite de segurança: {}",
-            entry.name()
-        )));
-    }
+    ensure_expansion_ratio(entry.name(), total, compressed_size)?;
     Ok((total, compressed_size, checksum))
 }
 
@@ -467,6 +470,7 @@ fn extract_entry(
                 "tamanho expandido excede o limite de segurança".to_owned(),
             ));
         }
+        ensure_expansion_ratio(entry.name(), total, entry.compressed_size())?;
     }
     output.flush()?;
     output.get_ref().sync_all()?;
@@ -478,8 +482,23 @@ fn extract_entry(
             entry.name()
         )));
     }
+    ensure_expansion_ratio(entry.name(), total, entry.compressed_size())?;
     fs::rename(temporary, target)?;
     Ok((total, entry.compressed_size(), checksum))
+}
+
+fn ensure_expansion_ratio(
+    entry_name: &str,
+    expanded_size: u64,
+    compressed_size: u64,
+) -> CoreResult<()> {
+    if compressed_size > 0 && expanded_size > compressed_size.saturating_mul(MAX_COMPRESSION_RATIO)
+    {
+        return Err(CoreError::InvalidInput(format!(
+            "razão de expansão excede o limite de segurança: {entry_name}"
+        )));
+    }
+    Ok(())
 }
 
 fn safe_zip_path(entry: &ZipFile<'_>) -> CoreResult<PathBuf> {

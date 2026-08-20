@@ -1,4 +1,3 @@
-use compactador_core::models::InstallationState;
 #[cfg(not(windows))]
 use compactador_windows_integration::not_supported_report;
 
@@ -80,7 +79,7 @@ fn main() {
             for message in report.messages {
                 println!("{message}");
             }
-            if !report.verified && report.state != InstallationState::Unknown {
+            if !report.verified {
                 std::process::exit(1);
             }
         }
