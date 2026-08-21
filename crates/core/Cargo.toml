@@ -12,3 +12,6 @@ path = "src/lib.rs"
 crc32fast = "1.4"
 flate2 = "1.0"
 zip = { version = "0.6.6", default-features = false, features = ["deflate"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"

@@ -467,7 +467,7 @@ pub fn extract_archive_with_cancel(
         if is_cancelled() {
             return Err(CoreError::Cancelled);
         }
-        fs::rename(&staging, destination)?;
+        publish_directory_without_overwrite(&staging, destination)?;
         Ok(ArchiveSummary {
             entries,
             total_original_bytes,
@@ -742,6 +742,60 @@ fn create_temporary_file(path: &Path) -> CoreResult<File> {
     Ok(OpenOptions::new().write(true).create_new(true).open(path)?)
 }
 
+fn publish_directory_without_overwrite(staging: &Path, destination: &Path) -> CoreResult<()> {
+    #[cfg(target_os = "linux")]
+    {
+        use std::ffi::CString;
+        use std::os::unix::ffi::OsStrExt;
+
+        let staging = CString::new(staging.as_os_str().as_bytes()).map_err(|_| {
+            CoreError::InvalidInput("caminho temporário contém byte nulo".to_owned())
+        })?;
+        let destination = CString::new(destination.as_os_str().as_bytes()).map_err(|_| {
+            CoreError::InvalidInput("caminho de destino contém byte nulo".to_owned())
+        })?;
+        // SAFETY: the pointers reference NUL-terminated paths owned by this scope,
+        // and renameat2 does not retain them after returning.
+        let result = unsafe {
+            libc::renameat2(
+                libc::AT_FDCWD,
+                staging.as_ptr(),
+                libc::AT_FDCWD,
+                destination.as_ptr(),
+                libc::RENAME_NOREPLACE,
+            )
+        };
+        if result == 0 {
+            return Ok(());
+        }
+        let error = std::io::Error::last_os_error();
+        if matches!(
+            error.raw_os_error(),
+            Some(libc::ENOSYS) | Some(libc::EINVAL) | Some(libc::EOPNOTSUPP)
+        ) {
+            return Err(CoreError::Unsupported(
+                "publicação de diretório sem sobrescrita não é suportada pelo filesystem"
+                    .to_owned(),
+            ));
+        }
+        Err(CoreError::Io(error))
+    }
+
+    #[cfg(windows)]
+    {
+        fs::rename(staging, destination)?;
+        return Ok(());
+    }
+
+    #[cfg(not(any(target_os = "linux", windows)))]
+    {
+        let _ = (staging, destination);
+        Err(CoreError::Unsupported(
+            "publicação de diretório sem sobrescrita não é suportada nesta plataforma".to_owned(),
+        ))
+    }
+}
+
 fn publish_file_without_overwrite(temporary: &Path, output: &Path) -> CoreResult<()> {
     match fs::hard_link(temporary, output) {
         Ok(()) => {
@@ -765,6 +819,38 @@ fn temporary_path(target: &Path) -> PathBuf {
     let mut temporary = target.to_path_buf();
     temporary.set_extension(format!("partial-{stamp}-{}", std::process::id()));
     temporary
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    use super::publish_directory_without_overwrite;
+    use crate::error::CoreError;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn directory_publication_does_not_replace_existing_destination() {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("compactador-publish-test-{stamp}"));
+        let staging = root.join("staging");
+        let destination = root.join("destination");
+        fs::create_dir_all(&staging).expect("create staging");
+        fs::create_dir_all(&destination).expect("create destination");
+        fs::write(destination.join("sentinel.txt"), b"preserve").expect("write sentinel");
+
+        let result = publish_directory_without_overwrite(&staging, &destination);
+
+        assert!(matches!(result, Err(CoreError::Io(_))));
+        assert!(staging.is_dir());
+        assert_eq!(
+            fs::read(destination.join("sentinel.txt")).expect("read sentinel"),
+            b"preserve"
+        );
+        let _ = fs::remove_dir_all(root);
+    }
 }
 
 fn zip_error(error: zip::result::ZipError) -> CoreError {
