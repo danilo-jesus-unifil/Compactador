@@ -435,3 +435,24 @@ Após a correção passaram `cargo fmt --all -- --check`, `cargo check --workspa
 O workflow [Windows release #32423666352](https://github.com/danilo-jesus-unifil/Compactador/actions/runs/32423666352) concluiu com `success` em `windows-latest`. A etapa `Validate`, o build release, o empacotamento e a publicação dos artefatos passaram. O único aviso foi a depreciação operacional do Node.js 20 nas actions usadas; não houve falha de teste ou de build.
 
 A release [`Compactador v0.1.17`](https://github.com/danilo-jesus-unifil/Compactador/releases/tag/v0.1.17) publicou `Compactador-v0.1.17-windows-x86_64.zip` com 342.409 bytes e `Compactador-v0.1.17-windows-x86_64.zip.sha256` com 106 bytes. A verificação baixada retornou `OK`. O ZIP contém `compactador-compressor.exe`, `compactador-launcher.exe`, `README.md`, `LICENSE` e `CHANGELOG.md`.
+
+
+## Auditoria corretiva de dependências e boas práticas — ciclo v0.1.18
+
+### Escopo e pesquisa
+
+A passagem pesquisou versões publicadas de `zip`, `flate2`, `crc32fast`, `winreg` e `ctrlc`, advisories RustSec, boas práticas do `cargo-audit`, o runtime Node das GitHub Actions e o comportamento do parser ZIP moderno. O relatório detalhado foi salvo em `docs/AUDITORIA_DEPENDENCIAS_BOAS_PRATICAS_2026-08.md`.
+
+### Achados e decisões
+
+`winreg` foi atualizado de 0.52 para 0.56 e `ctrlc` 3.5.2 foi adicionado ao compressor. `flate2` 1.1.9 e `crc32fast` 1.5.0 já eram as versões atuais resolvidas. A migração experimental de `zip` 0.6.6 para 8.6.0 compilou após adaptações de API, mas os testes demonstraram que o leitor moderno deduplica entradas pelo nome antes da API pública. Como a política do Compactador exige rejeitar duplicidades, a migração foi revertida e a versão 0.6.6 foi mantida. O advisory RUSTSEC-2025-0168 foi pesquisado; a faixa específica afetada é `>=1.3.0,<2.3.0` para `ZipArchive::extract`, função que o projeto não chama, e a extração própria continua com validações adicionais.
+
+### Correções implementadas
+
+A descompactação ganhou `extract_archive_with_cancel`, com consultas durante a leitura, remoção do staging e ausência de publicação parcial quando cancelada. O CLI instala um handler cross-platform de Ctrl+C que apenas marca o `CancellationToken`. O workflow foi atualizado para `actions/checkout@v5` e `softprops/action-gh-release@v3`, eliminando o uso documentado do runtime Node.js 20. O workflow instala `cargo-audit` 0.22.2 e o executa antes dos gates de build. Os fixtures de duplicidade passaram a criar ZIPs armazenados com dois headers centrais para continuar testando archives recebidos de terceiros.
+
+### Evidências locais
+
+Rust/Cargo 1.75 passou `cargo check --workspace --locked` e `cargo test --workspace --locked`, confirmando o MSRV declarado. Rust 1.88 passou formatação, check, testes debug e release, Clippy estrito, build release, `cargo tree -d`, metadata, diff check e `cargo audit -D warnings`. O cargo-audit examinou 25 dependências, encontrou zero vulnerabilidades e zero warnings. A suíte passou a conter 42 testes: 18 core, 13 container, 5 compressor e 6 integração Windows em memória. A matriz externa final passou 63/63 cenários.
+
+A validação Windows específica das dependências atualizadas, do handler de console, do Explorer, do Registry real e da publicação do artefato permanece pendente do workflow `windows-latest` acionado pela tag v0.1.18.

@@ -359,7 +359,18 @@ pub fn extract_archive(
     path: impl AsRef<Path>,
     destination: impl AsRef<Path>,
 ) -> CoreResult<ArchiveSummary> {
+    extract_archive_with_cancel(path, destination, &|| false)
+}
+
+pub fn extract_archive_with_cancel(
+    path: impl AsRef<Path>,
+    destination: impl AsRef<Path>,
+    is_cancelled: &dyn Fn() -> bool,
+) -> CoreResult<ArchiveSummary> {
     let destination = destination.as_ref();
+    if is_cancelled() {
+        return Err(CoreError::Cancelled);
+    }
     if destination.exists() {
         return Err(CoreError::InvalidInput(format!(
             "o destino de extração já existe: {}",
@@ -388,6 +399,9 @@ pub fn extract_archive(
         let mut total_original_bytes = 0_u64;
         let mut total_compressed_bytes = 0_u64;
         for index in 0..archive.len() {
+            if is_cancelled() {
+                return Err(CoreError::Cancelled);
+            }
             let mut entry = archive.by_index(index).map_err(zip_error)?;
             let relative = safe_zip_path(&entry)?;
             let name = normalized_name(&relative)?;
@@ -417,7 +431,7 @@ pub fn extract_archive(
                     fs::create_dir_all(parent)?;
                 }
                 let temporary = temporary_path(&target);
-                let result = extract_entry(&mut entry, &temporary, &target);
+                let result = extract_entry(&mut entry, &temporary, &target, is_cancelled);
                 if result.is_err() {
                     let _ = fs::remove_file(&temporary);
                 }
@@ -450,6 +464,9 @@ pub fn extract_archive(
             });
         }
         reject_hierarchical_conflicts(&entries)?;
+        if is_cancelled() {
+            return Err(CoreError::Cancelled);
+        }
         fs::rename(&staging, destination)?;
         Ok(ArchiveSummary {
             entries,
@@ -502,6 +519,7 @@ fn extract_entry(
     entry: &mut ZipFile<'_>,
     temporary: &Path,
     target: &Path,
+    is_cancelled: &dyn Fn() -> bool,
 ) -> CoreResult<(u64, u64, u32)> {
     let mut output =
         BufWriter::with_capacity(DEFAULT_BUFFER_SIZE, create_temporary_file(temporary)?);
@@ -509,6 +527,9 @@ fn extract_entry(
     let mut total = 0_u64;
     let mut buffer = [0_u8; DEFAULT_BUFFER_SIZE];
     loop {
+        if is_cancelled() {
+            return Err(CoreError::Cancelled);
+        }
         let read = entry.read(&mut buffer)?;
         if read == 0 {
             break;
@@ -582,13 +603,15 @@ fn reject_hierarchical_conflicts(entries: &[ArchiveEntry]) -> CoreResult<()> {
 }
 
 fn safe_zip_path(entry: &ZipFile<'_>) -> CoreResult<PathBuf> {
-    entry
-        .enclosed_name()
-        .map(safe_relative_path)
-        .transpose()?
-        .ok_or_else(|| {
-            CoreError::InvalidInput(format!("caminho inseguro no container: {}", entry.name()))
-        })
+    let raw_path = Path::new(entry.name());
+    let relative = safe_relative_path(raw_path)?;
+    if relative.as_os_str().is_empty() {
+        return Err(CoreError::InvalidInput(format!(
+            "caminho inseguro no container: {}",
+            entry.name()
+        )));
+    }
+    Ok(relative)
 }
 
 fn copy_with_cancel(

@@ -14,18 +14,23 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable-x86_64-pc-windows-msvc
 
+      - name: Install cargo-audit
+        shell: bash
+        run: cargo install cargo-audit --version 0.22.2 --locked
+
       - name: Validate
         shell: bash
         run: |
           set -euo pipefail
           cargo fmt --all -- --check
+          cargo audit
           cargo check --workspace --locked
           cargo test --workspace --locked
           cargo test --workspace --release --locked
@@ -46,7 +51,7 @@ jobs:
           (Get-FileHash "$package.zip" -Algorithm SHA256).Hash.ToLower() + "  $package.zip" | Set-Content "$package.zip.sha256"
 
       - name: Publish release assets
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: false
           files: |

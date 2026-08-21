@@ -1,6 +1,6 @@
 use compactador_core::container::{
     compress_file, compress_inputs, compress_inputs_with_strategy, extract_archive,
-    validate_archive, ContainerCompression,
+    extract_archive_with_cancel, validate_archive, ContainerCompression,
 };
 use compactador_core::models::CompressionLevel;
 use std::fs::{self, File};
@@ -17,6 +17,62 @@ fn temp_dir() -> PathBuf {
         .expect("clock")
         .as_nanos();
     std::env::temp_dir().join(format!("compactador-test-{stamp}"))
+}
+
+fn stored_zip(entries: &[(&str, &[u8])]) -> Vec<u8> {
+    let mut local = Vec::new();
+    let mut central = Vec::new();
+    for (name, data) in entries {
+        let name = name.as_bytes();
+        let mut hasher = crc32fast::Hasher::new();
+        hasher.update(data);
+        let checksum = hasher.finalize();
+        let offset = local.len() as u32;
+        local.extend_from_slice(&0x0403_4b50_u32.to_le_bytes());
+        local.extend_from_slice(&20_u16.to_le_bytes());
+        local.extend_from_slice(&0x0800_u16.to_le_bytes());
+        local.extend_from_slice(&0_u16.to_le_bytes());
+        local.extend_from_slice(&0_u16.to_le_bytes());
+        local.extend_from_slice(&0_u16.to_le_bytes());
+        local.extend_from_slice(&checksum.to_le_bytes());
+        local.extend_from_slice(&(data.len() as u32).to_le_bytes());
+        local.extend_from_slice(&(data.len() as u32).to_le_bytes());
+        local.extend_from_slice(&(name.len() as u16).to_le_bytes());
+        local.extend_from_slice(&0_u16.to_le_bytes());
+        local.extend_from_slice(name);
+        local.extend_from_slice(data);
+
+        central.extend_from_slice(&0x0201_4b50_u32.to_le_bytes());
+        central.extend_from_slice(&20_u16.to_le_bytes());
+        central.extend_from_slice(&20_u16.to_le_bytes());
+        central.extend_from_slice(&0x0800_u16.to_le_bytes());
+        central.extend_from_slice(&0_u16.to_le_bytes());
+        central.extend_from_slice(&0_u16.to_le_bytes());
+        central.extend_from_slice(&0_u16.to_le_bytes());
+        central.extend_from_slice(&checksum.to_le_bytes());
+        central.extend_from_slice(&(data.len() as u32).to_le_bytes());
+        central.extend_from_slice(&(data.len() as u32).to_le_bytes());
+        central.extend_from_slice(&(name.len() as u16).to_le_bytes());
+        central.extend_from_slice(&0_u16.to_le_bytes());
+        central.extend_from_slice(&0_u16.to_le_bytes());
+        central.extend_from_slice(&0_u16.to_le_bytes());
+        central.extend_from_slice(&0_u16.to_le_bytes());
+        central.extend_from_slice(&0_u32.to_le_bytes());
+        central.extend_from_slice(&offset.to_le_bytes());
+        central.extend_from_slice(name);
+    }
+    let central_offset = local.len() as u32;
+    let central_size = central.len() as u32;
+    local.extend_from_slice(&central);
+    local.extend_from_slice(&0x0605_4b50_u32.to_le_bytes());
+    local.extend_from_slice(&0_u16.to_le_bytes());
+    local.extend_from_slice(&0_u16.to_le_bytes());
+    local.extend_from_slice(&(entries.len() as u16).to_le_bytes());
+    local.extend_from_slice(&(entries.len() as u16).to_le_bytes());
+    local.extend_from_slice(&central_size.to_le_bytes());
+    local.extend_from_slice(&central_offset.to_le_bytes());
+    local.extend_from_slice(&0_u16.to_le_bytes());
+    local
 }
 
 #[test]
@@ -121,6 +177,33 @@ fn rejects_symlink_inside_directory() {
 }
 
 #[test]
+fn extraction_cancellation_discards_staging_without_publishing_destination() {
+    use std::cell::Cell;
+
+    let root = temp_dir();
+    fs::create_dir_all(&root).expect("create root");
+    let input = root.join("entrada.txt");
+    let archive = root.join("entrada.zip");
+    let destination = root.join("destino");
+    fs::write(&input, vec![b'x'; 256 * 1024]).expect("write input");
+    compress_file(&input, &archive, CompressionLevel::Normal).expect("compress input");
+
+    let calls = Cell::new(0_u32);
+    let result = extract_archive_with_cancel(&archive, &destination, &|| {
+        let current = calls.get();
+        calls.set(current + 1);
+        current >= 2
+    });
+    assert!(matches!(
+        result,
+        Err(compactador_core::error::CoreError::Cancelled)
+    ));
+    assert!(!destination.exists());
+    assert!(calls.get() >= 2);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn rejects_invalid_archive() {
     let root = temp_dir();
     fs::create_dir_all(&root).expect("create root");
@@ -164,17 +247,11 @@ fn rejects_case_insensitive_duplicate_archive_names() {
     let root = temp_dir();
     fs::create_dir_all(&root).expect("create root");
     let archive = root.join("case-duplicate.zip");
-    let file = File::create(&archive).expect("create archive");
-    let mut writer = ZipWriter::new(file);
-    writer
-        .start_file("Foo.txt", FileOptions::default())
-        .expect("start first");
-    writer.write_all(b"first").expect("write first");
-    writer
-        .start_file("foo.txt", FileOptions::default())
-        .expect("start second");
-    writer.write_all(b"second").expect("write second");
-    writer.finish().expect("finish archive");
+    fs::write(
+        &archive,
+        stored_zip(&[("Foo.txt", b"first"), ("foo.txt", b"second")]),
+    )
+    .expect("write archive");
     assert!(validate_archive(&archive).is_err());
     let _ = fs::remove_dir_all(root);
 }
@@ -265,15 +342,7 @@ fn extraction_rejects_duplicate_directory_entries() {
     let root = temp_dir();
     fs::create_dir_all(&root).expect("create root");
     let archive = root.join("duplicate-directories.zip");
-    let file = File::create(&archive).expect("create archive");
-    let mut writer = ZipWriter::new(file);
-    writer
-        .add_directory("folder/", FileOptions::default())
-        .expect("start first directory");
-    writer
-        .add_directory("folder/", FileOptions::default())
-        .expect("start second directory");
-    writer.finish().expect("finish archive");
+    fs::write(&archive, stored_zip(&[("folder/", b""), ("folder/", b"")])).expect("write archive");
     let destination = root.join("destination");
     assert!(extract_archive(&archive, &destination).is_err());
     assert!(!destination.exists());
@@ -285,17 +354,11 @@ fn rejects_duplicate_archive_names() {
     let root = temp_dir();
     fs::create_dir_all(&root).expect("create root");
     let archive = root.join("duplicate.zip");
-    let file = File::create(&archive).expect("create archive");
-    let mut writer = ZipWriter::new(file);
-    writer
-        .start_file("same.txt", FileOptions::default())
-        .expect("start first");
-    writer.write_all(b"first").expect("write first");
-    writer
-        .start_file("same.txt", FileOptions::default())
-        .expect("start second");
-    writer.write_all(b"second").expect("write second");
-    writer.finish().expect("finish archive");
+    fs::write(
+        &archive,
+        stored_zip(&[("same.txt", b"first"), ("same.txt", b"second")]),
+    )
+    .expect("write archive");
     assert!(validate_archive(&archive).is_err());
     let _ = fs::remove_dir_all(root);
 }

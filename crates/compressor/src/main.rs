@@ -1,6 +1,6 @@
 mod operation;
 
-use compactador_core::container::extract_archive;
+use compactador_core::container::extract_archive_with_cancel;
 use compactador_core::error::CoreError;
 use compactador_core::models::{OperationPhase, ResourceProfile};
 use compactador_core::selection::SelectionRequest;
@@ -173,10 +173,16 @@ fn main() {
         print_help();
         return;
     }
+    let token = CancellationToken::default();
+    let signal_token = token.clone();
+    if let Err(error) = ctrlc::set_handler(move || signal_token.cancel()) {
+        eprintln!("falha ao instalar handler de Ctrl+C: {error}");
+        std::process::exit(1);
+    }
     match parse_decompression(&arguments) {
         Ok(Some((archive, destination))) => {
             let destination_display = destination.display().to_string();
-            match extract_archive(archive, destination) {
+            match extract_archive_with_cancel(archive, destination, &|| token.is_cancelled()) {
                 Ok(summary) => {
                     println!(
                         "Descompactação concluída em {} ({} entradas; {} bytes)",
@@ -185,6 +191,10 @@ fn main() {
                         summary.total_original_bytes
                     );
                     return;
+                }
+                Err(CoreError::Cancelled) => {
+                    eprintln!("operação cancelada; temporários foram descartados");
+                    std::process::exit(130);
                 }
                 Err(error) => {
                     eprintln!("falha na descompactação: {error}");
@@ -221,7 +231,6 @@ fn main() {
             std::process::exit(1);
         }
     };
-    let token = CancellationToken::default();
     let reporter = ConsoleReporter;
     match run_operation(
         &request,

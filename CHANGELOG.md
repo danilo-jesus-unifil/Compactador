@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.1.18] — 2026-08-21
+
+### Auditoria de dependências e boas práticas
+
+A auditoria corretiva pesquisou as versões publicadas e os advisories RustSec das dependências. `winreg` foi atualizado de 0.52 para 0.56 e `ctrlc` 3.5.2 foi adicionado somente ao compressor para conectar Ctrl+C ao cancelamento cooperativo existente. `flate2` 1.1.9 e `crc32fast` 1.5.0 já eram as versões atuais resolvidas no lockfile.
+
+O crate `zip` permanece em 0.6.6 por decisão de compatibilidade e segurança: a linha está fora da faixa afetada pelo RUSTSEC-2025-0168 para `ZipArchive::extract`, o projeto não chama essa rotina e a extração é própria; a avaliação experimental do `zip` 8.6.0 mostrou que o parser deduplica nomes no mapa interno antes da API pública, impedindo que os testes e a política própria detectem todas as duplicidades ZIP. A migração major foi, portanto, rejeitada até existir uma estratégia de leitura que preserve essa garantia.
+
+### Correções funcionais
+
+A descompactação passou a aceitar cancelamento cooperativo durante a leitura de cada entry e antes da publicação. O staging é removido em caso de cancelamento e o destino final não é publicado parcialmente. O compressor CLI agora registra um handler cross-platform de Ctrl+C que apenas marca o token atômico, deixando a limpeza no pipeline normal.
+
+Os fixtures de regressão para nomes duplicados passaram a construir ZIPs armazenados com headers centrais duplicados, pois o writer moderno rejeita a duplicidade antes de produzir o archive. Isso mantém testável a defesa contra archives maliciosos recebidos de terceiros.
+
+### CI e segurança da cadeia de build
+
+O workflow passou a usar `actions/checkout@v5` e `softprops/action-gh-release@v3`, versões compatíveis com o runtime Node.js 24. A validação de release também instala `cargo-audit` 0.22.2 e executa a auditoria do `Cargo.lock` antes dos testes e do build.
+
+### Validação local
+
+Com Rust/Cargo 1.75, foram aprovados `cargo check --workspace --locked` e `cargo test --workspace --locked`. Com Rust 1.88, foram aprovados formatação, check, testes debug e release, Clippy com `-D warnings`, build release, `cargo tree -d`, `cargo metadata --locked`, `git diff --check` e `cargo audit -D warnings`. A suíte Rust passou a conter 42 testes: 18 do core, 13 do container, 5 do compressor e 6 da integração Windows em memória. A matriz externa de cenários passou novamente com 63/63 casos aprovados.
+
+### Limitações
+
+A validação Windows específica de `winreg` 0.56, do handler de console, do Explorer, do Registry real, Windows 10/11, UNC e caminhos longos depende do workflow Windows acionado pela tag. As janelas TOCTOU entre validar e abrir, verificar e publicar, e ler e remover Registry continuam riscos residuais que exigiriam primitivas de handles específicas de cada plataforma.
+
 ## [0.1.17] — 2026-08-20
 
 ### Auditoria orientada por prompt de IA

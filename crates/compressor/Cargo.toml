@@ -11,3 +11,4 @@ path = "src/main.rs"
 [dependencies]
 compactador-core.workspace = true
 compactador-windows-integration.workspace = true
+ctrlc = "3.5"
