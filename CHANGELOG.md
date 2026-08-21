@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.19] — 2026-08-21
+
+### Correção confirmada de publicação concorrente
+
+A auditoria autônoma reproduziu uma corrida em que um diretório de destino criado depois da checagem inicial podia ser consumido pela publicação final do staging. A extração agora usa `renameat2(RENAME_NOREPLACE)` no Linux, preserva o destino concorrente e retorna erro sem publicar o staging. No Windows, a publicação usa o caminho nativo de `fs::rename` e ainda requer validação end-to-end no runner Windows; em outras plataformas, a operação retorna `Unsupported` em vez de oferecer uma garantia de não sobrescrita não comprovada.
+
+Foi adicionada a dependência condicional `libc` somente para Linux e o lockfile foi atualizado. A regressão unitária `directory_publication_does_not_replace_existing_destination` confirma a preservação do destino e do staging. O reproducer concorrente passou três repetições após a correção; a suíte completa também passou em debug e release.
+
+### Validação desta preparação
+
+Foram aprovados `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, Clippy estrito, `cargo build --workspace --release --locked`, `cargo tree -d --locked`, `cargo metadata --locked` e `git diff --check`. O cross-check `cargo check --workspace --target x86_64-pc-windows-gnu --locked` também passou, mas não substitui execução nativa Windows. O E2E da CLI passou com 10/10 cenários.
+
+O `cargo-audit` não foi concluído nesta máquina por timeouts de crates.io. A validação real do Explorer, Registry, Windows 10/11, UNC, caminhos longos, seleção extensa e Ctrl+C interativo permanece pendente. Esta entrada documenta a preparação local; a release/tag v0.1.19 ainda não foi publicada.
+
 ## [0.1.18] — 2026-08-21
 
 ### Auditoria de dependências e boas práticas

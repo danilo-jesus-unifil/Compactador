@@ -461,3 +461,46 @@ A validação Windows específica das dependências atualizadas, do handler de c
 ### Resultado comprovado do v0.1.18
 
 O workflow [Windows release #32432217654](https://github.com/danilo-jesus-unifil/Compactador/actions/runs/32432217654) concluiu com `success` em `windows-latest`, incluindo instalação do cargo-audit, validação, build release, empacotamento e publicação. A release [`Compactador v0.1.18`](https://github.com/danilo-jesus-unifil/Compactador/releases/tag/v0.1.18) publicou `Compactador-v0.1.18-windows-x86_64.zip` com 356.432 bytes e sidecar SHA-256 com 106 bytes. O checksum baixado retornou `OK`; o digest do ZIP é `ef28034ca17a997e05080c79c6aed1430d6ecdb8dff3ec32de2393a5269a8287`. O pacote contém `compactador-compressor.exe`, `compactador-launcher.exe`, `README.md`, `LICENSE` e `CHANGELOG.md`.
+
+
+## Nova passagem — prompt autônomo geral aprimorado — 2026-08-21
+
+A passagem foi iniciada sobre o commit `0213921a3cdd5e518b12dc2f083eaffdbf14b4a5`, branch `main`, working tree limpo e versão `0.1.18`. O prompt autônomo geral aprimorado foi lido integralmente e aplicado ao ciclo: baseline, pesquisa de plataforma, reprodução, correção, regressão, validação, documentação e preparação de entrega.
+
+### Hipótese reproduzida e causa-raiz
+
+Foi reproduzida uma corrida de publicação de diretório. O reproducer criou um archive com 3.000 arquivos, iniciou a extração, aguardou o staging `out.partial-*` e criou `out` depois do check inicial, mas antes do `fs::rename` final. No baseline, as três repetições retornaram `result=success` e confirmaram que o destino concorrente podia ser substituído. O registro detalhado está em `/home/ubuntu/prompt4_bug_record_toc_t.md`.
+
+A causa-raiz era a publicação de diretório com `fs::rename` após uma verificação de existência separada. A documentação oficial do Rust diferencia `rename` de `hard_link`: `rename` pode substituir o destino conforme a plataforma, enquanto `hard_link` falha se o caminho de destino já existe [5]. A discussão oficial sobre `rename_noreplace` também diferencia arquivos e diretórios [6].
+
+### Correção aplicada
+
+A publicação final do diretório passou a usar `renameat2(RENAME_NOREPLACE)` no Linux, retornando erro quando o destino surgiu entre o check e a publicação. Para Windows, o caminho permanece baseado em `fs::rename` como primitive nativa e requer confirmação end-to-end; para plataformas diferentes de Linux e Windows, retorna `Unsupported` em vez de oferecer uma garantia não comprovada. A dependência `libc` foi adicionada somente ao alvo Linux, o lockfile foi atualizado e foi incluído o teste unitário `directory_publication_does_not_replace_existing_destination`.
+
+### Validação pós-correção
+
+| Verificação | Resultado |
+| --- | --- |
+| `cargo fmt --all -- --check` | Aprovado |
+| `cargo check --workspace --locked` | Aprovado |
+| `cargo test --workspace --locked` | 43/43 testes aprovados |
+| `cargo test --workspace --release --locked` | 43/43 testes aprovados |
+| Clippy estrito | Aprovado sem warnings |
+| Build release | Aprovado |
+| `cargo tree -d --locked` | Nenhuma duplicidade exibida |
+| `cargo metadata --locked` | Aprovado |
+| `git diff --check` | Aprovado |
+| Cross-check `x86_64-pc-windows-gnu` | `cargo check` aprovado; não é runtime Windows |
+| E2E CLI | 10/10 cenários aprovados |
+| Reproducer concorrente pós-correção | 3/3 repetições rejeitaram a publicação e preservaram o destino |
+
+### Pesquisa de integração
+
+A documentação Microsoft verificada confirma que verbs estáticos usam comandos registrados e que protocolos de linha de comando possuem limitações para seleção múltipla; a documentação também descreve o limite de seleção de 15 itens para determinados comandos do Explorer no Windows 10 [1] [2] [3]. A documentação oficial de `MoveFileEx` diferencia a flag `MOVEFILE_REPLACE_EXISTING` e as limitações de caminho/volume [4]. A seleção extensa, Explorer visual, Registry real, Windows 10/11, UNC, caminhos longos, filesystems de rede e Ctrl+C real continuam pendentes de validação nativa.
+
+### Pendências e entrega
+
+O `cargo-audit` 0.22.2 não foi concluído neste ambiente por timeouts de crates.io; nenhum claim de zero vulnerabilidades é emitido com base nesta passagem. A versão compartilhada foi preparada como `0.1.19`, o CHANGELOG e `docs/RELEASE_NOTES_0.1.19.md` foram atualizados, mas ainda não houve commit, tag, push ou release. A publicação requer revisão humana e confirmação do CI/plataforma.
+
+[5]: https://doc.rust-lang.org/std/fs/fn.rename.html "Rust std::fs::rename"
+[6]: https://github.com/rust-lang/libs-team/issues/131 "Rust libs-team: rename without replacement"
