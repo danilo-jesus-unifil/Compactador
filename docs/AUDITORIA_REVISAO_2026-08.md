@@ -456,3 +456,8 @@ A descompactação ganhou `extract_archive_with_cancel`, com consultas durante a
 Rust/Cargo 1.75 passou `cargo check --workspace --locked` e `cargo test --workspace --locked`, confirmando o MSRV declarado. Rust 1.88 passou formatação, check, testes debug e release, Clippy estrito, build release, `cargo tree -d`, metadata, diff check e `cargo audit -D warnings`. O cargo-audit examinou 25 dependências, encontrou zero vulnerabilidades e zero warnings. A suíte passou a conter 42 testes: 18 core, 13 container, 5 compressor e 6 integração Windows em memória. A matriz externa final passou 63/63 cenários.
 
 A validação Windows específica das dependências atualizadas, do handler de console, do Explorer, do Registry real e da publicação do artefato permanece pendente do workflow `windows-latest` acionado pela tag v0.1.18.
+
+
+### Resultado comprovado do v0.1.18
+
+O workflow [Windows release #32432217654](https://github.com/danilo-jesus-unifil/Compactador/actions/runs/32432217654) concluiu com `success` em `windows-latest`, incluindo instalação do cargo-audit, validação, build release, empacotamento e publicação. A release [`Compactador v0.1.18`](https://github.com/danilo-jesus-unifil/Compactador/releases/tag/v0.1.18) publicou `Compactador-v0.1.18-windows-x86_64.zip` com 356.432 bytes e sidecar SHA-256 com 106 bytes. O checksum baixado retornou `OK`; o digest do ZIP é `ef28034ca17a997e05080c79c6aed1430d6ecdb8dff3ec32de2393a5269a8287`. O pacote contém `compactador-compressor.exe`, `compactador-launcher.exe`, `README.md`, `LICENSE` e `CHANGELOG.md`.

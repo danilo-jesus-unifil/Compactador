@@ -58,3 +58,9 @@ O relatório técnico completo está em `docs/AUDITORIA_DEPENDENCIAS_BOAS_PRATIC
 [6]: https://github.com/actions/checkout "actions/checkout — GitHub"
 
 [7]: https://github.com/softprops/action-gh-release "softprops/action-gh-release — GitHub"
+
+## Resultado do CI Windows
+
+O workflow [#32432217654](https://github.com/danilo-jesus-unifil/Compactador/actions/runs/32432217654) concluiu com `success` em `windows-latest`. Passaram a instalação do toolchain, a instalação do cargo-audit, a validação, o build release, o empacotamento e a publicação.
+
+A release [Compactador v0.1.18](https://github.com/danilo-jesus-unifil/Compactador/releases/tag/v0.1.18) publicou `Compactador-v0.1.18-windows-x86_64.zip` com 356.432 bytes e o sidecar SHA-256 com 106 bytes. A verificação baixada retornou `OK`. O digest SHA-256 do ZIP publicado é `ef28034ca17a997e05080c79c6aed1430d6ecdb8dff3ec32de2393a5269a8287`. O pacote contém `compactador-compressor.exe`, `compactador-launcher.exe`, `README.md`, `LICENSE` e `CHANGELOG.md`.

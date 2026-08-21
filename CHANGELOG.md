@@ -22,9 +22,13 @@ O workflow passou a usar `actions/checkout@v5` e `softprops/action-gh-release@v3
 
 Com Rust/Cargo 1.75, foram aprovados `cargo check --workspace --locked` e `cargo test --workspace --locked`. Com Rust 1.88, foram aprovados formatação, check, testes debug e release, Clippy com `-D warnings`, build release, `cargo tree -d`, `cargo metadata --locked`, `git diff --check` e `cargo audit -D warnings`. A suíte Rust passou a conter 42 testes: 18 do core, 13 do container, 5 do compressor e 6 da integração Windows em memória. A matriz externa de cenários passou novamente com 63/63 casos aprovados.
 
+### CI Windows e artefato
+
+O workflow [Windows release #32432217654](https://github.com/danilo-jesus-unifil/Compactador/actions/runs/32432217654) concluiu com sucesso em `windows-latest`, incluindo instalação do cargo-audit, validação, build, empacotamento e publicação. A release publicou `Compactador-v0.1.18-windows-x86_64.zip` com 356.432 bytes; o checksum baixado retornou `OK`, e o digest SHA-256 do ZIP é `ef28034ca17a997e05080c79c6aed1430d6ecdb8dff3ec32de2393a5269a8287`. O pacote contém os dois executáveis, README, LICENSE e CHANGELOG.
+
 ### Limitações
 
-A validação Windows específica de `winreg` 0.56, do handler de console, do Explorer, do Registry real, Windows 10/11, UNC e caminhos longos depende do workflow Windows acionado pela tag. As janelas TOCTOU entre validar e abrir, verificar e publicar, e ler e remover Registry continuam riscos residuais que exigiriam primitivas de handles específicas de cada plataforma.
+A validação visual do Explorer, do Registry real, Windows 10/11, UNC e caminhos longos continua dependente de teste manual Windows. As janelas TOCTOU entre validar e abrir, verificar e publicar, e ler e remover Registry continuam riscos residuais que exigiriam primitivas de handles específicas de cada plataforma.
 
 ## [0.1.17] — 2026-08-20
 
