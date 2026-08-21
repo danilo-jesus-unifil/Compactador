@@ -16,7 +16,7 @@ A primeira execução do workflow v0.1.19 encontrou um `return Ok(())` desnecess
 
 Foram aprovados `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, Clippy estrito, `cargo build --workspace --release --locked`, `cargo tree -d --locked`, `cargo metadata --locked` e `git diff --check`. O cross-check `cargo check --workspace --target x86_64-pc-windows-gnu --locked` também passou, mas não substitui execução nativa Windows. O E2E da CLI passou com 10/10 cenários.
 
-O `cargo-audit` não foi concluído localmente por timeouts de crates.io; o workflow Windows instalou a versão declarada e concluiu o gate RustSec com sucesso. A validação real do Explorer, Registry, Windows 10/11, UNC, caminhos longos, seleção extensa e Ctrl+C interativo permanece pendente. A release/tag v0.1.19 foi publicada após o CI aprovado, com ZIP Windows de 357.721 bytes e checksum `1d17abc554d5e285223b28348ac3c5fcdf4093568130d75d4bc24c75942f939b` verificado.
+O `cargo-audit` não foi concluído localmente por timeouts de crates.io; o workflow Windows instalou a versão declarada e concluiu o gate RustSec com sucesso. A validação real do Explorer, Registry, Windows 10/11, UNC, caminhos longos, seleção extensa e Ctrl+C interativo permanece pendente. A release/tag v0.1.19 foi publicada após o CI aprovado, com ZIP Windows e sidecar SHA-256 verificados.
 
 ## [0.1.18] — 2026-08-21
 

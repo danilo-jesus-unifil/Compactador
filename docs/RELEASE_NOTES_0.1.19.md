@@ -18,7 +18,7 @@ O reproducer `/home/ubuntu/prompt4_toc_t_race.sh` foi executado uma vez no basel
 
 ## Follow-up do CI Windows
 
-A primeira execução do workflow para a tag v0.1.19 parou no Clippy estrito para Windows por causa de um `return Ok(())` desnecessário no bloco condicionado ao sistema operacional. O retorno foi substituído pela expressão final `Ok(())`, sem alteração funcional. O commit corretivo é `a6087d3`; a tag foi reposicionada para o commit final `873b116` antes da execução aprovada do workflow `#32506796368`.
+A primeira execução do workflow para a tag v0.1.19 parou no Clippy estrito para Windows por causa de um `return Ok(())` desnecessário no bloco condicionado ao sistema operacional. O retorno foi substituído pela expressão final `Ok(())`, sem alteração funcional. O commit corretivo é `a6087d3`; a tag foi reposicionada para o commit final de documentação, e o workflow Windows final concluiu com sucesso todos os gates, o empacotamento e a publicação.
 
 ## Validação local
 
@@ -36,8 +36,8 @@ A primeira execução do workflow para a tag v0.1.19 parou no Clippy estrito par
 | `cargo check --workspace --target x86_64-pc-windows-gnu --locked` | Aprovado como cross-check de compilação |
 | E2E CLI local | 10/10 cenários aprovados |
 | Reproducer concorrente pós-correção | 3/3 repetições aprovadas |
-| CI Windows `#32506796368` | Aprovado; cargo-audit, validação, build, empacotamento e publicação concluídos |
-| Artefato Windows | ZIP x86_64, 357.721 bytes; checksum `1d17abc554d5e285223b28348ac3c5fcdf4093568130d75d4bc24c75942f939b` |
+| CI Windows | Aprovado; cargo-audit, validação, build, empacotamento e publicação concluídos |
+| Artefato Windows | ZIP x86_64 e sidecar SHA-256 publicados; checksum verificado localmente |
 
 Cross-compilação não é execução nativa. Ainda não foram validados interativamente o Explorer, o Registry real, Windows 10/11, UNC, caminhos longos, seleção extensa, Ctrl+C real e filesystems de rede.
 
@@ -49,4 +49,4 @@ A decisão de manter `zip` 0.6.6, registrada nas notas da v0.1.18, não foi alte
 
 ## Entrega
 
-A versão declarada do workspace foi entregue como `0.1.19`. Os commits `34da600`, `74d5ffc`, `a6087d3`, `81beb35`, `c1dd192` e `873b116` foram enviados ao branch `main`; a tag anotada `v0.1.19` foi publicada no commit `873b116`, e a release pública foi criada após o CI Windows aprovado. O ZIP e o sidecar SHA-256 foram baixados e verificados localmente.
+A versão declarada do workspace foi entregue como `0.1.19`. Os commits de correção e documentação foram enviados ao branch `main`; a tag anotada `v0.1.19` foi publicada no commit final, e a release pública foi criada após o CI Windows aprovado. O ZIP e o sidecar SHA-256 foram baixados e verificados localmente.
