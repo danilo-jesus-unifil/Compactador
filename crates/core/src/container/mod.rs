@@ -784,7 +784,7 @@ fn publish_directory_without_overwrite(staging: &Path, destination: &Path) -> Co
     #[cfg(windows)]
     {
         fs::rename(staging, destination)?;
-        return Ok(());
+        Ok(())
     }
 
     #[cfg(not(any(target_os = "linux", windows)))]
