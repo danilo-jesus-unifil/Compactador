@@ -10,13 +10,13 @@ Foi adicionada a dependência condicional `libc` somente para Linux e o lockfile
 
 ### Follow-up do CI Windows
 
-A primeira execução do workflow v0.1.19 encontrou um `return Ok(())` desnecessário no bloco condicionado a Windows, rejeitado pelo Clippy estrito. O retorno foi substituído pela expressão final `Ok(())`, sem mudança de comportamento. A correção foi validada localmente e será incluída na execução seguinte do workflow.
+A primeira execução do workflow v0.1.19 encontrou um `return Ok(())` desnecessário no bloco condicionado a Windows, rejeitado pelo Clippy estrito. O retorno foi substituído pela expressão final `Ok(())`, sem mudança de comportamento. A correção foi validada localmente e incluída na execução aprovada seguinte do workflow `#32505778882`.
 
-### Validação desta preparação
+### Validação local e CI
 
 Foram aprovados `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, Clippy estrito, `cargo build --workspace --release --locked`, `cargo tree -d --locked`, `cargo metadata --locked` e `git diff --check`. O cross-check `cargo check --workspace --target x86_64-pc-windows-gnu --locked` também passou, mas não substitui execução nativa Windows. O E2E da CLI passou com 10/10 cenários.
 
-O `cargo-audit` não foi concluído nesta máquina por timeouts de crates.io. A validação real do Explorer, Registry, Windows 10/11, UNC, caminhos longos, seleção extensa e Ctrl+C interativo permanece pendente. Esta entrada documenta a preparação local; a release/tag v0.1.19 ainda não foi publicada.
+O `cargo-audit` não foi concluído localmente por timeouts de crates.io; o workflow Windows instalou a versão declarada e concluiu o gate RustSec com sucesso. A validação real do Explorer, Registry, Windows 10/11, UNC, caminhos longos, seleção extensa e Ctrl+C interativo permanece pendente. A release/tag v0.1.19 foi publicada após o CI aprovado, com ZIP Windows de 357.624 bytes e checksum `bc3adaaeef0a017ffd50b49cf94f09ea9fa38cb4e101a7a9b322729135ef3e09` verificado.
 
 ## [0.1.18] — 2026-08-21
 

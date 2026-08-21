@@ -1,6 +1,6 @@
-# Compactador v0.1.19 — preparação local
+# Compactador v0.1.19
 
-> **Estado:** preparada localmente; a tag e a release ainda não foram publicadas.
+> **Estado:** release publicada em 21 de agosto de 2026 após CI Windows aprovado; artefatos e checksum verificados.
 
 ## Correção confirmada
 
@@ -18,7 +18,7 @@ O reproducer `/home/ubuntu/prompt4_toc_t_race.sh` foi executado uma vez no basel
 
 ## Follow-up do CI Windows
 
-A primeira execução do workflow para a tag v0.1.19 parou no Clippy estrito para Windows por causa de um `return Ok(())` desnecessário no bloco condicionado ao sistema operacional. O retorno foi substituído pela expressão final `Ok(())`, sem alteração funcional. O commit corretivo é `a6087d3`; a tag precisa apontar para esse commit antes da próxima execução do workflow.
+A primeira execução do workflow para a tag v0.1.19 parou no Clippy estrito para Windows por causa de um `return Ok(())` desnecessário no bloco condicionado ao sistema operacional. O retorno foi substituído pela expressão final `Ok(())`, sem alteração funcional. O commit corretivo é `a6087d3`; a tag foi reposicionada para o commit final `81beb35` antes da execução aprovada do workflow `#32505778882`.
 
 ## Validação local
 
@@ -36,15 +36,17 @@ A primeira execução do workflow para a tag v0.1.19 parou no Clippy estrito par
 | `cargo check --workspace --target x86_64-pc-windows-gnu --locked` | Aprovado como cross-check de compilação |
 | E2E CLI local | 10/10 cenários aprovados |
 | Reproducer concorrente pós-correção | 3/3 repetições aprovadas |
+| CI Windows `#32505778882` | Aprovado; cargo-audit, validação, build, empacotamento e publicação concluídos |
+| Artefato Windows | ZIP x86_64, 357.624 bytes; checksum `bc3adaaeef0a017ffd50b49cf94f09ea9fa38cb4e101a7a9b322729135ef3e09` |
 
 Cross-compilação não é execução nativa. Ainda não foram validados interativamente o Explorer, o Registry real, Windows 10/11, UNC, caminhos longos, seleção extensa, Ctrl+C real e filesystems de rede.
 
 ## Segurança e dependências
 
-O `cargo-audit` 0.22.2 não foi concluído nesta preparação porque a instalação ficou bloqueada por timeouts de transferência em crates.io. Não há claim de “zero vulnerabilidades” baseado nesta execução local. O workflow versionado continua sendo o caminho para executar o gate RustSec em ambiente de CI.
+O `cargo-audit` 0.22.2 não foi concluído localmente porque a instalação ficou bloqueada por timeouts de crates.io; o workflow Windows instalou a versão declarada e concluiu o gate RustSec com sucesso. O resultado do CI é a evidência autoritativa desta release, sem ampliar o claim para ambientes diferentes do lockfile validado.
 
 A decisão de manter `zip` 0.6.6, registrada nas notas da v0.1.18, não foi alterada nesta correção. Nenhum segredo foi adicionado ao código, logs, commit ou artefato.
 
-## Entrega pendente
+## Entrega
 
-A versão declarada do workspace foi preparada como `0.1.19`, mas não houve commit, tag anotada, push ou release publicados nesta etapa. A publicação deve ocorrer somente após revisão humana, confirmação do CI apropriado e validação da semântica Windows específica da operação.
+A versão declarada do workspace foi entregue como `0.1.19`. Os commits `34da600`, `74d5ffc`, `a6087d3` e `81beb35` foram enviados ao branch `main`; a tag anotada `v0.1.19` foi publicada no commit `81beb35`, e a release pública foi criada após o CI Windows aprovado. O ZIP e o sidecar SHA-256 foram baixados e verificados localmente.
