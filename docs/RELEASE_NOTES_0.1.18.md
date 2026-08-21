@@ -8,7 +8,7 @@ Esta versão aplica uma auditoria corretiva de dependências, segurança e boas 
 
 A descompactação agora aceita cancelamento cooperativo durante a leitura de entries e antes da publicação. O staging é removido quando a operação é cancelada, e o destino final não é publicado parcialmente. O compressor CLI registra um handler cross-platform usando `ctrlc` 3.5.2; o callback apenas marca o token atômico e não executa I/O.
 
-A integração Windows atualiza `winreg` de 0.52 para 0.56. A mudança precisa ser confirmada no job Windows MSVC, pois o ambiente Linux não compila o backend condicionado a Windows.
+A integração Windows atualiza `winreg` de 0.52 para 0.56. A compilação MSVC e os testes condicionais foram confirmados pelo workflow Windows da release.
 
 O workflow atualiza `actions/checkout` para v5 e `softprops/action-gh-release` para v3, versões compatíveis com Node.js 24. A validação passa a instalar `cargo-audit` 0.22.2 e a auditar o lockfile antes dos gates de compilação e testes.
 
@@ -35,13 +35,19 @@ O advisory RustSec RUSTSEC-2025-0168 foi analisado. Ele afeta a rotina `ZipArchi
 | `cargo audit -D warnings` | 0 vulnerabilidades; 0 warnings |
 | Matriz externa de cenários | 63/63 aprovados |
 
-## Validação Windows pendente
+## Validações que exigem Windows interativo
 
-Antes da publicação definitiva, o workflow `windows-latest` deve confirmar a compilação de `winreg` 0.56, os testes condicionais de paths e Registro em memória, o handler de console, a construção dos dois executáveis MSVC, o empacotamento e o checksum. A validação visual do Explorer, Registry real, Windows 10/11, UNC e caminhos longos continua fora do ambiente local.
+O workflow `windows-latest` já confirmou a compilação de `winreg` 0.56, os testes condicionais de paths e Registro em memória, a construção dos dois executáveis MSVC que incluem o handler de Ctrl+C, o empacotamento e o checksum. A recepção interativa de um Ctrl+C real, a validação visual do Explorer, do Registry real, do Windows 10/11, de UNC e de caminhos longos continuam exigindo um Windows interativo.
 
 ## Documentação
 
 O relatório técnico completo está em `docs/AUDITORIA_DEPENDENCIAS_BOAS_PRATICAS_2026-08.md`. O histórico consolidado está em `docs/AUDITORIA_REVISAO_2026-08.md`.
+
+## Resultado do CI Windows
+
+O workflow [#32432217654](https://github.com/danilo-jesus-unifil/Compactador/actions/runs/32432217654) concluiu com `success` em `windows-latest`. Passaram a instalação do toolchain, a instalação do cargo-audit, a validação, o build release, o empacotamento e a publicação.
+
+A release [Compactador v0.1.18](https://github.com/danilo-jesus-unifil/Compactador/releases/tag/v0.1.18) publicou `Compactador-v0.1.18-windows-x86_64.zip` com 356.432 bytes e o sidecar SHA-256 com 106 bytes. A verificação baixada retornou `OK`. O digest SHA-256 do ZIP publicado é `ef28034ca17a997e05080c79c6aed1430d6ecdb8dff3ec32de2393a5269a8287`. O pacote contém `compactador-compressor.exe`, `compactador-launcher.exe`, `README.md`, `LICENSE` e `CHANGELOG.md`.
 
 ## Referências
 
@@ -58,9 +64,3 @@ O relatório técnico completo está em `docs/AUDITORIA_DEPENDENCIAS_BOAS_PRATIC
 [6]: https://github.com/actions/checkout "actions/checkout — GitHub"
 
 [7]: https://github.com/softprops/action-gh-release "softprops/action-gh-release — GitHub"
-
-## Resultado do CI Windows
-
-O workflow [#32432217654](https://github.com/danilo-jesus-unifil/Compactador/actions/runs/32432217654) concluiu com `success` em `windows-latest`. Passaram a instalação do toolchain, a instalação do cargo-audit, a validação, o build release, o empacotamento e a publicação.
-
-A release [Compactador v0.1.18](https://github.com/danilo-jesus-unifil/Compactador/releases/tag/v0.1.18) publicou `Compactador-v0.1.18-windows-x86_64.zip` com 356.432 bytes e o sidecar SHA-256 com 106 bytes. A verificação baixada retornou `OK`. O digest SHA-256 do ZIP publicado é `ef28034ca17a997e05080c79c6aed1430d6ecdb8dff3ec32de2393a5269a8287`. O pacote contém `compactador-compressor.exe`, `compactador-launcher.exe`, `README.md`, `LICENSE` e `CHANGELOG.md`.

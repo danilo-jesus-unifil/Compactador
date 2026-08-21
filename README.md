@@ -2,7 +2,7 @@
 
 O **Compactador** é um projeto Rust-first para compactação iniciada pelo menu de contexto do Windows Explorer. A solução possui dois pontos de entrada independentes: um **Launcher/Manager**, responsável por instalar, verificar, reparar e remover a integração; e um **compressor operacional**, chamado pelo Explorer para validar a seleção e executar a operação.
 
-O desenvolvimento segue as categorias do prompt mestre, com análise, implementação, testes e revisão antes de cada avanço. A arquitetura separa domínio, filesystem, container, análise, seleção de estratégia, integração com o Windows e executáveis.
+A arquitetura separa domínio, filesystem, container, análise, seleção de estratégia, integração com o Windows e executáveis.
 
 ## Arquitetura
 
@@ -14,7 +14,7 @@ crates/
 └── compressor/             # executável acionado pelo Explorer e operação
 ```
 
-As regras de trabalho estão em [`docs/BOAS_PRATICAS_GIT_E_PROJETO.md`](docs/BOAS_PRATICAS_GIT_E_PROJETO.md). As decisões de registro estão em [`docs/DECISAO_INTEGRACAO_WINDOWS.md`](docs/DECISAO_INTEGRACAO_WINDOWS.md). A pesquisa de prompts de auditoria por IA está em [`docs/PESQUISA_PROMPTS_REVISAO_IA.md`](docs/PESQUISA_PROMPTS_REVISAO_IA.md), com o prompt aplicado em [`docs/PROMPT_AUDITORIA_IA_APLICADO_2026-08.md`](docs/PROMPT_AUDITORIA_IA_APLICADO_2026-08.md).
+As regras de trabalho estão em [`docs/BOAS_PRATICAS_GIT_E_PROJETO.md`](docs/BOAS_PRATICAS_GIT_E_PROJETO.md). As decisões de integração com o Registro estão em [`docs/DECISAO_INTEGRACAO_WINDOWS.md`](docs/DECISAO_INTEGRACAO_WINDOWS.md).
 
 ## Recursos implementados
 
@@ -26,7 +26,7 @@ O Launcher possui fluxo explícito de detecção, instalação idempotente, veri
 
 A implementação do Registro está compilada somente em Windows por meio de um adaptador `winreg`; em Linux, os contratos e o backend em memória são usados para testes. A seleção múltipla via verbo estático ainda precisa ser validada no Windows quanto ao limite de linha de comando documentado pela Microsoft. Caso seleções muito grandes exijam preservação completa do namespace do Shell, a evolução indicada está registrada em [`docs/DECISAO_INTEGRACAO_WINDOWS.md`](docs/DECISAO_INTEGRACAO_WINDOWS.md).
 
-A análise de diretórios e a enumeração do container percorrem `read_dir` em streaming, evitando acumular uma lista inteira de entradas. O compressor operacional também expõe descompactação segura pelo CLI com `--decompress`; o destino deve ser novo e é validado antes da publicação. O container usado é ZIP padrão com Deflate ou armazenamento direto, não um formato proprietário; algoritmos adicionais poderão ser adaptados atrás do contrato comum sem alterar o fluxo de operação.
+A análise de diretórios e a enumeração do container percorrem `read_dir` em streaming, evitando acumular uma lista inteira de entradas. O compressor operacional também expõe descompactação segura pelo CLI com `--decompress`; o destino deve ser novo e é validado antes da publicação. O container é ZIP padrão com Deflate ou armazenamento direto.
 
 Como o ambiente de desenvolvimento atual é Linux, o comportamento dependente do Windows ainda requer validação final em Windows 10 e Windows 11, incluindo aparência do menu, reinicialização do Explorer, instalação, reparo, remoção, caminhos UNC, caminhos longos e seleções extensas.
 

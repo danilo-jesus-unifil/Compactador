@@ -1,16 +1,12 @@
 # Pesquisa de prompts para revisão de projetos por IA
 
-**Autor:** Manus AI  
-**Data:** 20 de agosto de 2026  
-**Projeto aplicado:** Compactador Inteligente para Windows em Rust, versão inicial `0.1.16`
-
 ## 1. Objetivo e escopo
 
 Esta pesquisa responde a três perguntas práticas: **quais prompts ajudam uma IA a revisar um projeto de software**, **como encontrar prompts de qualidade** e **como aplicar um deles com evidência no repositório Compactador**. O foco não foi reunir frases genéricas para “melhorar o código”, mas identificar estruturas que tornem a revisão verificável, reproduzível e útil para um projeto Rust com integração ao Windows Explorer, Registro, CLI, container ZIP, extração e workflow de release.
 
 A pesquisa combinou documentação oficial de ferramentas de desenvolvimento com a aplicação direta ao workspace. A documentação do GitHub fornece um prompt completo de revisão de código; o VS Code descreve princípios gerais para especificidade, contexto, decomposição e verificação; e as documentações de GitHub Copilot e Claude Code mostram como revisões integradas usam o diff em contexto do repositório, severidade e instruções específicas do projeto [1] [2] [3] [4].
 
-> **Conclusão executiva:** o melhor prompt para uma auditoria de projeto não é o mais longo. Ele deve combinar papel, escopo, contexto disponível, áreas de risco, formato dos achados, evidência exigida, comandos de validação, limites do ambiente e uma segunda passagem independente.
+Um prompt útil para auditar um projeto combina papel, escopo, contexto disponível, áreas de risco, formato dos achados, evidência exigida, comandos de validação, limites do ambiente e uma segunda passagem independente.
 
 ## 2. Como encontrar prompts de revisão de projetos
 

@@ -29,9 +29,7 @@ A validação local aprovou:
 - `git diff --check`
 - `bash /home/ubuntu/full_audit_e2e.sh`
 
-A suíte local possui 41 testes executáveis: 18 do core, 12 do container, 5 do compressor e 6 da integração Windows em memória. O [workflow Windows #32423666352](https://github.com/danilo-jesus-unifil/Compactador/actions/runs/32423666352) concluiu com sucesso em `windows-latest`, incluindo validação debug/release, build e publicação. O único aviso foi a depreciação do Node.js 20 nas actions usadas.
-
-A [release v0.1.17](https://github.com/danilo-jesus-unifil/Compactador/releases/tag/v0.1.17) publicou o ZIP Windows com 342.409 bytes e o sidecar SHA-256 com 106 bytes. O checksum baixado retornou `OK`. O pacote contém `compactador-compressor.exe`, `compactador-launcher.exe`, `README.md`, `LICENSE` e `CHANGELOG.md`.
+A suíte local possui 41 testes executáveis: 18 do core, 12 do container, 5 do compressor e 6 da integração Windows em memória. O [workflow Windows #32423666352](https://github.com/danilo-jesus-unifil/Compactador/actions/runs/32423666352) concluiu com sucesso em `windows-latest`, incluindo validação debug/release, build e publicação. O único aviso foi a depreciação do Node.js 20 nas actions usadas. Os arquivos publicados, o checksum e o conteúdo do pacote estão listados em **Artefatos publicados**.
 
 ## Limitações conhecidas
 

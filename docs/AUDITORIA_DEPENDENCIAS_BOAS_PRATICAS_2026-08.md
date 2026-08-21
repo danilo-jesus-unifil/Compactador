@@ -1,20 +1,20 @@
 # Auditoria de dependências e boas práticas — Compactador
 
-**Autor:** Manus AI  
-**Data:** 20 de agosto de 2026  
-**Escopo:** workspace Rust do Compactador, pipeline ZIP, CLI, integração Windows, workflow de release e Cargo.lock.
+## Escopo
 
-## 1. Conclusão executiva
+Workspace Rust do Compactador, pipeline ZIP, CLI, integração Windows, workflow de release e `Cargo.lock`.
+
+## Resultado
 
 A auditoria corretiva foi realizada com pesquisa em fontes primárias, inspeção do código, migração experimental de dependências, testes de regressão, auditoria RustSec e repetição da matriz end-to-end. Foram corrigidos os gaps que eram tecnicamente tratáveis sem enfraquecer as garantias já existentes: o CLI agora conecta Ctrl+C ao cancelamento cooperativo; a extração também pode ser cancelada durante a leitura e nunca publica o destino quando o cancelamento ocorre; `winreg` foi atualizado para a versão estável 0.56; e o workflow deixou de usar actions baseadas no runtime Node.js 20, passando para as versões Node.js 24.
 
 A migração experimental do crate `zip` para a versão estável 8.6.0 foi deliberadamente revertida. O motivo não foi uma falha de compilação sem solução, mas uma mudança de semântica relevante: o parser moderno armazena o diretório central em um `IndexMap` indexado pelo nome e substitui entradas com o mesmo nome antes de expô-las por `ZipArchive`. Isso impede a política do Compactador de detectar todos os archives maliciosos com nomes duplicados. A versão 0.6.6 usada pelo projeto está fora da faixa afetada pelo advisory específico de `ZipArchive::extract`, e o Compactador não chama essa rotina; sua extração é própria e conserva validações adicionais.
 
-Ao final, a suíte Rust contém **42 testes aprovados**, a matriz externa contém **63 de 63 cenários aprovados**, o `cargo-audit` encontrou **zero vulnerabilidades**, não há dependências duplicadas no `cargo tree -d`, e o código compila com o MSRV declarado Rust 1.75. A confirmação de `winreg` em código realmente Windows, do handler de console no Windows, do Explorer, do Registry real e da publicação do artefato permanece dependente do workflow `windows-latest` acionado pela release.
+A suíte Rust contém **42 testes aprovados**, a matriz externa contém **63 de 63 cenários aprovados**, o `cargo-audit` encontrou **zero vulnerabilidades**, não há dependências duplicadas no `cargo tree -d`, e o código compila com o MSRV declarado Rust 1.75. A compilação de `winreg`, os testes condicionais e a publicação foram confirmados pelo workflow; a experiência interativa do handler de console, do Explorer e do Registry real continua fora desta validação automatizada.
 
-## 2. Fontes e critérios de pesquisa
+## Fontes
 
-A análise de versões e segurança foi baseada nas páginas oficiais dos crates, na base RustSec, na documentação do crate de Ctrl+C, no blog oficial do Rust Secure Code Working Group e nos repositórios oficiais das GitHub Actions. O procedimento de auditoria seguiu a recomendação do Rust para executar `cargo audit` contra o `Cargo.lock` [5].
+A análise de versões e segurança usa as páginas oficiais dos crates, a base RustSec, a documentação do crate de Ctrl+C, o blog oficial do Rust Secure Code Working Group e os repositórios oficiais das GitHub Actions. O procedimento segue a recomendação do Rust para executar `cargo audit` contra o `Cargo.lock` [5].
 
 > “`cargo audit` checks your project's dependencies for known security vulnerabilities.” — Rust Secure Code Working Group [5]
 
@@ -31,7 +31,7 @@ As fontes relevantes e as decisões derivadas delas estão resumidas na tabela a
 | `softprops/action-gh-release` | v2 | v3 | **Atualizar** | A documentação oficial indica v3 para o runtime Node.js 24; v2 usa Node.js 20 depreciado. |
 | `cargo-audit` | ausente | 0.22.2 no workflow | **Adicionar ao gate** | A auditoria do Cargo.lock passa a bloquear releases com vulnerabilidades ou warnings configurados. |
 
-## 3. Advisory RustSec e decisão sobre `zip`
+## Advisory RustSec e decisão sobre `zip`
 
 O advisory [RUSTSEC-2025-0168 / CVE-2025-29787] [2] descreve uma falha de canonicalização na rotina `zip::read::ZipArchive::extract`: um link simbólico criado por uma entrada anterior poderia ser usado por uma entrada posterior para escrever fora do destino. A base RustSec classifica como HIGH a faixa `>=1.3.0, <2.3.0`, indica correção em `>=2.3.0` e marca versões `<1.3.0` como não afetadas para a função descrita.
 
@@ -41,37 +41,37 @@ A versão estável atual pesquisada no crates.io é `zip` 8.6.0 [1]. A tentativa
 
 A correção escolhida foi **não adotar a atualização major neste ciclo**. Não é boa prática trocar uma dependência de segurança por uma versão numericamente mais nova se a troca remove uma propriedade de validação necessária. Uma futura migração do `zip` deverá incluir uma estratégia explícita para ler e rejeitar duplicidades do diretório central antes da deduplicação do mapa interno, além de validação em Linux e Windows.
 
-## 4. Correções implementadas
+## Correções implementadas
 
-### 4.1 Cancelamento de descompactação
+### Cancelamento de descompactação
 
 Foi adicionada `extract_archive_with_cancel`, mantendo `extract_archive` como wrapper compatível. O callback de cancelamento é consultado antes da operação, entre entries, durante a cópia de cada entry e imediatamente antes da publicação do staging. Se a operação for cancelada, o staging é removido pelo caminho de erro e o destino final não é criado.
 
 O teste `extraction_cancellation_discards_staging_without_publishing_destination` confirma que uma operação cancelada retorna `CoreError::Cancelled`, não deixa destino parcial e executa o callback durante a leitura.
 
-### 4.2 Handler de Ctrl+C no CLI
+### Handler de Ctrl+C no CLI
 
 O binário `compactador-compressor` agora cria um `CancellationToken` no início do `main`, registra `ctrlc::set_handler` e captura o token por clone. O callback executa somente `signal_token.cancel()`. Não há escrita de arquivo, impressão ou limpeza dentro do callback; essas ações permanecem no fluxo normal e seguro da operação.
 
 A mesma tokenização é usada tanto na compactação quanto na descompactação. O código retorna status 130 e informa o cancelamento ao usuário, enquanto os temporários são descartados pelo pipeline.
 
-### 4.3 Atualização de `winreg`
+### Atualização de `winreg`
 
-A dependência Windows foi atualizada de `winreg` 0.52 para 0.56.0 [4]. A API usada pelo backend — `RegKey::predef`, abertura, criação, escrita, exclusão de valores e poda de chaves vazias — permaneceu compatível no build Linux para as partes comuns; a confirmação definitiva exige o job Windows MSVC da release.
+A dependência Windows foi atualizada de `winreg` 0.52 para 0.56.0 [4]. A API usada pelo backend — `RegKey::predef`, abertura, criação, escrita, exclusão de valores e poda de chaves vazias — permaneceu compatível, e a compilação MSVC com os testes condicionais foi confirmada pelo job Windows da release.
 
-### 4.4 Auditoria de dependências no workflow
+### Auditoria de dependências no workflow
 
 O workflow instala `cargo-audit` 0.22.2 com `--locked` e executa `cargo audit` antes de `cargo check`, testes e Clippy. A execução local com a base RustSec carregou 1.225 advisories, examinou 25 dependências do lockfile e encontrou `vulnerabilities.found = false`, com contagem zero e nenhum warning.
 
-### 4.5 Actions do GitHub
+### Actions do GitHub
 
-O workflow foi atualizado para `actions/checkout@v5` e `softprops/action-gh-release@v3`. A documentação do checkout informa que v5 usa Node.js 24 e requer runner `v2.327.1` ou superior [6]. O repositório da action de release recomenda v3 para Node.js 24, enquanto a linha v2 usava o runtime Node.js 20 depreciado [7]. O job continua usando `windows-latest`, que deverá validar a compatibilidade real antes da publicação.
+O workflow foi atualizado para `actions/checkout@v5` e `softprops/action-gh-release@v3`. A documentação do checkout informa que v5 usa Node.js 24 e requer runner `v2.327.1` ou superior [6]. O repositório da action de release recomenda v3 para Node.js 24, enquanto a linha v2 usava o runtime Node.js 20 depreciado [7]. O job `windows-latest` confirmou a validação, o build e a publicação da v0.1.18.
 
-### 4.6 Fixtures de duplicidade
+### Fixtures de duplicidade
 
 O writer do `zip` moderno passou a rejeitar duplicidades durante a criação, o que tornou inadequados os fixtures que dependiam de `start_file` duas vezes com o mesmo nome. Os testes agora constroem um ZIP armazenado mínimo com dois headers locais e dois registros do diretório central. Assim, a regressão continua representando um archive recebido de terceiros e verifica a defesa do produto, não apenas uma restrição do writer utilizado para fabricar o fixture.
 
-## 5. Validação executada
+## Validação executada
 
 A matriz de validação foi repetida depois das correções. Os resultados são os seguintes.
 
@@ -93,17 +93,17 @@ A matriz de validação foi repetida depois das correções. Os resultados são 
 
 A matriz externa cobriu ajuda e CLI, Unicode e espaços, arquivos vazios, diretórios vazios, múltipla seleção, os cinco níveis, Store/Deflate, round-trip byte a byte, nomes automáticos repetidos, destino existente, saída sobreposta, traversal, caminhos drive/UNC/absolutos, nomes reservados Windows, backslash, duplicidades, colisões case-insensitive, conflito hierárquico, razão de expansão, CRC corrompido, archive truncado, arquivo não ZIP, argumentos inválidos, launcher fora do Windows, permissões, symlinks, muitos arquivos, arquivo grande, caminhos relativos e nome não Unicode.
 
-## 6. Falhas encontradas durante a própria correção
+## Falhas encontradas durante a própria correção
 
 A primeira compilação com `zip` 8.6.0 falhou por diferenças de API. Após a adaptação, os testes de duplicidade e paths falharam porque a semântica do crate moderno não preservava todas as entries e porque `enclosed_name()` sanitizava formas que o Compactador precisa rejeitar conservadoramente. Esses problemas foram resolvidos revertendo a migração major, restaurando `FileOptions` e validando o nome bruto da entry com a política própria de `safe_relative_path`.
 
 Na validação seguinte, o Clippy encontrou um import não utilizado no novo teste de extração cancelável. O import foi removido e os gates foram executados novamente. Não há falhas conhecidas pendentes no código local ao final desta passagem.
 
-## 7. Riscos que permanecem honestamente documentados
+## Riscos que permanecem documentados
 
 A atualização não elimina janelas TOCTOU absolutas entre validar e abrir arquivos, verificar e publicar o destino, e ler e remover valores do Registry. A eliminação completa exigiria APIs de handles e primitivas específicas de Windows e Unix, com uma matriz de testes própria.
 
-Também permanecem fora da validação local a experiência visual do menu no Explorer, a instalação e remoção contra o Registry real, versões Windows 10 e 11, caminhos UNC e caminhos longos em ambiente Windows real. O workflow `windows-latest` é necessário para confirmar `winreg` 0.56, o handler de console e a publicação do artefato da v0.1.18.
+Também permanecem fora da validação local a experiência visual do menu no Explorer, a instalação e remoção contra o Registry real, versões Windows 10 e 11, caminhos UNC e caminhos longos em ambiente Windows real. O workflow `windows-latest` confirmou a compilação de `winreg` 0.56, os testes condicionais e a publicação do artefato; o comportamento interativo do handler de Ctrl+C ainda não foi exercitado por sinal real.
 
 ## Referências
 
