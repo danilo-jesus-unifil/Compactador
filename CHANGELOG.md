@@ -8,6 +8,10 @@ A auditoria autônoma reproduziu uma corrida em que um diretório de destino cri
 
 Foi adicionada a dependência condicional `libc` somente para Linux e o lockfile foi atualizado. A regressão unitária `directory_publication_does_not_replace_existing_destination` confirma a preservação do destino e do staging. O reproducer concorrente passou três repetições após a correção; a suíte completa também passou em debug e release.
 
+### Follow-up do CI Windows
+
+A primeira execução do workflow v0.1.19 encontrou um `return Ok(())` desnecessário no bloco condicionado a Windows, rejeitado pelo Clippy estrito. O retorno foi substituído pela expressão final `Ok(())`, sem mudança de comportamento. A correção foi validada localmente e será incluída na execução seguinte do workflow.
+
 ### Validação desta preparação
 
 Foram aprovados `cargo fmt --all -- --check`, `cargo check --workspace --locked`, `cargo test --workspace --locked`, `cargo test --workspace --release --locked`, Clippy estrito, `cargo build --workspace --release --locked`, `cargo tree -d --locked`, `cargo metadata --locked` e `git diff --check`. O cross-check `cargo check --workspace --target x86_64-pc-windows-gnu --locked` também passou, mas não substitui execução nativa Windows. O E2E da CLI passou com 10/10 cenários.

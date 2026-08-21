@@ -16,6 +16,10 @@ Foi adicionado o teste unitário `container::tests::directory_publication_does_n
 
 O reproducer `/home/ubuntu/prompt4_toc_t_race.sh` foi executado uma vez no baseline e reproduziu a falha. Depois da correção, foi executado três vezes e passou nas três, com o resultado esperado de erro `File exists` e preservação do destino.
 
+## Follow-up do CI Windows
+
+A primeira execução do workflow para a tag v0.1.19 parou no Clippy estrito para Windows por causa de um `return Ok(())` desnecessário no bloco condicionado ao sistema operacional. O retorno foi substituído pela expressão final `Ok(())`, sem alteração funcional. O commit corretivo é `a6087d3`; a tag precisa apontar para esse commit antes da próxima execução do workflow.
+
 ## Validação local
 
 | Verificação | Resultado |

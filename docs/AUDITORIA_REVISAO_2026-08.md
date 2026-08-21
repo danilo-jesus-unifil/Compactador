@@ -504,3 +504,10 @@ O `cargo-audit` 0.22.2 não foi concluído neste ambiente por timeouts de crates
 
 [5]: https://doc.rust-lang.org/std/fs/fn.rename.html "Rust std::fs::rename"
 [6]: https://github.com/rust-lang/libs-team/issues/131 "Rust libs-team: rename without replacement"
+
+
+### Follow-up pós-CI da preparação v0.1.19
+
+A tag `v0.1.19`, inicialmente apontada para `74d5ffc`, acionou o workflow Windows `#32505024659`. A instalação do cargo-audit passou, mas o job falhou no Clippy estrito para Windows porque o bloco `#[cfg(windows)]` continha um `return Ok(())` desnecessário. O erro foi específico de lint condicionado à plataforma, não de comportamento funcional.
+
+O `return` foi removido e a expressão final passou a ser `Ok(())`. O ajuste foi validado localmente com formatação, Clippy Linux e `cargo check --target x86_64-pc-windows-gnu`; a suíte anterior continua cobrindo 43 testes em debug/release. O commit corretivo é `a6087d3`. As notas v0.1.19 e o CHANGELOG foram atualizados para não ocultar a falha do primeiro CI. A tag será reposicionada somente depois da validação local final, preservando uma única tag v0.1.19 para o candidato corrigido.
